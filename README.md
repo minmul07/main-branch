@@ -11,3 +11,17 @@
 - 2023203092 주승현
 - 2025403017 강서영
 
+## 개발 환경
+
+- Python 3.14와 [uv](https://docs.astral.sh/uv/)로 FastAPI·SQLAlchemy 의존성을 관리합니다.
+- SQLite는 Python 표준 라이브러리의 `sqlite3`을 사용하며, 검색용 FTS5도 사용할 수 있습니다.
+- React·Vite·TypeScript 프론트엔드는 `frontend/`에서 npm으로 관리합니다.
+
+```sh
+uv sync
+cd frontend
+npm ci
+npm run dev
+```
+
+백엔드 애플리케이션의 실행 명령은 API 진입점을 구현할 때 추가합니다.
