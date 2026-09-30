@@ -24,7 +24,17 @@ npm ci
 npm run dev
 ```
 
-백엔드 애플리케이션의 실행 명령은 API 진입점을 구현할 때 추가합니다.
+백엔드는 저장소 루트에서 실행합니다.
+
+```sh
+uv run uvicorn backend.app.main:app --reload
+```
+
+- 상태 확인: `GET http://127.0.0.1:8000/health` → `{"status":"ok"}`
+- API 문서: `http://127.0.0.1:8000/docs`
+- SQLite 파일: `backend/app.db` (최초 DB 연결 시 생성되며 Git에서 제외됩니다.)
+
+백엔드 테스트는 `uv run pytest`로 실행합니다. 검증 기준은 [테스트 문서](docs/TESTING.md)를 참고합니다.
 
 ## License
 
