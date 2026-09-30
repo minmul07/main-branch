@@ -16,6 +16,7 @@
 - Python 3.14와 [uv](https://docs.astral.sh/uv/)로 FastAPI·SQLAlchemy 의존성을 관리합니다.
 - SQLite는 Python 표준 라이브러리의 `sqlite3`을 사용하며, 검색용 FTS5도 사용할 수 있습니다.
 - React·Vite·TypeScript 프론트엔드는 `frontend/`에서 npm으로 관리합니다.
+- 프론트엔드는 Node 22.22.2 이상을 사용하며, `.nvmrc`는 Node 22 최신 패치를 선택합니다. 환경변수와 테스트 안내는 [프론트엔드 문서](docs/FRONTEND.md)를 참고합니다.
 
 ```sh
 uv sync
