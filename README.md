@@ -25,3 +25,7 @@ npm run dev
 ```
 
 백엔드 애플리케이션의 실행 명령은 API 진입점을 구현할 때 추가합니다.
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
