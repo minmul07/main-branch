@@ -1,3 +1,14 @@
+# GitHub Actions CI
+
+[CI 워크플로](../.github/workflows/ci.yml)는 `main` 대상 PR 생성·추가 커밋과 `main` push 시 실행됩니다. `workflow_dispatch`를 통한 수동 실행은 워크플로가 기본 브랜치에 등록된 뒤 사용할 수 있습니다. 작업 브랜치에 push만 하고 PR을 생성하지 않으면 자동 실행되지 않습니다.
+
+- `Backend tests`: Ubuntu 환경에서 Python 3.14와 uv로 `uv sync --locked`, `uv run --locked pytest`를 실행합니다.
+- `Frontend checks`: Ubuntu 환경에서 Node 22 최신 패치로 `frontend/`의 `npm ci`, `npm test`, `npm run build`, `npm run lint`를 실행합니다.
+- 두 job은 병렬로 실행하며 각각 제한 시간은 15분입니다. 같은 브랜치에서 새 실행이 시작되면 이전 실행은 취소됩니다.
+- 의존성 설치에는 `uv.lock`과 `frontend/package-lock.json`을 사용하고 다운로드 캐시를 재사용합니다.
+- CI가 실행된 뒤 GitHub Ruleset의 필수 검사에 `Backend tests`와 `Frontend checks`를 등록합니다. Ruleset 설정은 GitHub에서 별도로 수행합니다.
+- 이 워크플로는 브라우저 화면 확인과 아래 Docker·fresh clone 검증을 포함하지 않습니다.
+
 # 백엔드 테스트
 
 저장소 루트에서 Python 3.14와 uv를 사용합니다.
