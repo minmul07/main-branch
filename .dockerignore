@@ -1,0 +1,15 @@
+.git
+.venv
+**/node_modules
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.vitest
+**/dist
+**/*.tsbuildinfo
+**/*.db
+**/*.sqlite3
+**/.env
+**/.env.*
+!**/.env.example
+frontend

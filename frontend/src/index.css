@@ -1,0 +1,13 @@
+:root {
+  font-family: system-ui, sans-serif;
+  color: #202020;
+  background: #fff;
+}
+
+body {
+  margin: 0;
+}
+
+main {
+  padding: 2rem;
+}
