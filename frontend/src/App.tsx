@@ -1,15 +1,34 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { initialSubjects, mockDocuments } from './mocks/data'
 import SubjectCreateForm from './components/SubjectCreateForm'
 
 function App() {
   const [subjects, setSubjects] = useState(initialSubjects)
   const [isAdding, setIsAdding] = useState(false)
+  const [openSubjectMenuId, setOpenSubjectMenuId] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (openSubjectMenuId === null) return
+
+    function closeMenuOnOutsideClick(event: globalThis.MouseEvent) {
+      if (!(event.target instanceof Element) || !event.target.closest('[data-subject-menu]')) {
+        setOpenSubjectMenuId(null)
+      }
+    }
+
+    document.addEventListener('click', closeMenuOnOutsideClick)
+    return () => document.removeEventListener('click', closeMenuOnOutsideClick)
+  }, [openSubjectMenuId])
 
   function handleCreateSubject(name: string) {
     const nextId = Math.max(0, ...subjects.map((s) => s.id)) + 1
     setSubjects([...subjects, { id: nextId, name }])
     setIsAdding(false)
+  }
+
+  function handleDeleteSubject(subjectId: number) {
+    setSubjects((currentSubjects) => currentSubjects.filter((subject) => subject.id !== subjectId))
+    setOpenSubjectMenuId(null)
   }
 
   return (
@@ -46,15 +65,36 @@ function App() {
             : '등록된 자료 없음'
 
           return (
-            <li className="notebook-card" key={subject.id}>
+            <li
+              className={`notebook-card${openSubjectMenuId === subject.id ? ' has-open-menu' : ''}`}
+              key={subject.id}
+            >
               <div className="notebook-card-top">
-                <details className="notebook-info">
-                  <summary aria-label={`${subject.name} 정보`}>⋮</summary>
-                  <div className="notebook-info-content">
-                    <strong>{subject.name}</strong>
-                    <span>자료 {documents.length}개</span>
-                  </div>
-                </details>
+                <div className="notebook-info" data-subject-menu>
+                  <button
+                    className="notebook-info-toggle"
+                    type="button"
+                    aria-label={`${subject.name} 메뉴`}
+                    aria-haspopup="dialog"
+                    aria-expanded={openSubjectMenuId === subject.id}
+                    aria-controls={openSubjectMenuId === subject.id ? `subject-menu-${subject.id}` : undefined}
+                    onClick={() => setOpenSubjectMenuId((currentId) => currentId === subject.id ? null : subject.id)}
+                  >
+                    ⋮
+                  </button>
+                  {openSubjectMenuId === subject.id && (
+                    <div
+                      className="notebook-info-content"
+                      id={`subject-menu-${subject.id}`}
+                      role="dialog"
+                      aria-label={`${subject.name} 메뉴`}
+                    >
+                      <button type="button" onClick={() => handleDeleteSubject(subject.id)}>
+                        삭제
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="notebook-card-text">
                 <h2 title={subject.name}>{subject.name}</h2>

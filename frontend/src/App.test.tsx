@@ -36,3 +36,35 @@ test('validates subject name length and allows duplicate names', () => {
   expect(screen.getAllByRole('heading', { name: '자료구조' })).toHaveLength(2)
   expect(screen.queryByRole('textbox')).toBeNull()
 })
+
+test('shows one subject menu at a time and closes it when clicking outside', () => {
+  render(<App />)
+  const subjectList = screen.getByRole('list', { name: '과목 목록' })
+  const cards = within(subjectList).getAllByRole('listitem')
+
+  fireEvent.click(within(cards[0]).getByRole('button', { name: '자료구조 메뉴' }))
+  expect(screen.getAllByRole('dialog')).toHaveLength(1)
+  expect(within(cards[0]).getByRole('button', { name: '삭제' })).toBeTruthy()
+
+  fireEvent.click(within(cards[1]).getByRole('button', { name: '오픈소스소프트웨어개발 메뉴' }))
+  expect(screen.getAllByRole('dialog')).toHaveLength(1)
+  expect(within(cards[0]).queryByRole('dialog')).toBeNull()
+  expect(within(cards[1]).getByRole('dialog')).toBeTruthy()
+
+  fireEvent.click(document.body)
+  expect(screen.queryByRole('dialog')).toBeNull()
+})
+
+test('deletes the selected subject from the list', () => {
+  render(<App />)
+  const subjectList = screen.getByRole('list', { name: '과목 목록' })
+  const cards = within(subjectList).getAllByRole('listitem')
+
+  fireEvent.click(within(cards[0]).getByRole('button', { name: '자료구조 메뉴' }))
+  fireEvent.click(within(cards[0]).getByRole('button', { name: '삭제' }))
+
+  const remainingCards = within(subjectList).getAllByRole('listitem')
+  expect(remainingCards).toHaveLength(1)
+  expect(within(remainingCards[0]).getByRole('heading', { name: '오픈소스소프트웨어개발' })).toBeTruthy()
+  expect(screen.queryByRole('dialog')).toBeNull()
+})

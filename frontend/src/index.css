@@ -27,13 +27,14 @@ button:focus-visible, input:focus-visible, summary:focus-visible {
 .notebook-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 8px; padding: 0; margin: 0; list-style: none; }
 .notebook-card { display: flex; flex-direction: column; justify-content: space-between; min-width: 0; height: 150px; padding: 20px 32px; border-radius: 40px; background: #f0eeee; transition: background-color 150ms ease; }
 .notebook-card:hover { background: #eae8e8; }
+.notebook-card.has-open-menu { position: relative; z-index: 1; }
 .notebook-card-top { display: flex; align-items: center; justify-content: flex-end; }
 .notebook-info { position: relative; }
-.notebook-info summary { display: grid; place-items: center; width: 32px; height: 36px; border-radius: 25%; color: #62666b; font-size: 24px; list-style: none; }
-.notebook-info summary::-webkit-details-marker { display: none; }
-.notebook-info summary:hover { background: #dedcdc; }
-.notebook-info-content { position: absolute; z-index: 1; top: 40px; right: 0; display: grid; gap: 8px; width: 220px; padding: 16px; border: 1px solid #dedcdc; border-radius: 16px; background: #fff; box-shadow: 0 4px 16px #20212414; overflow-wrap: anywhere; }
-.notebook-info-content span { color: #62666b; font-size: 14px; }
+.notebook-info-toggle { display: grid; place-items: center; width: 32px; height: 36px; padding: 0; border: 0; border-radius: 25%; background: transparent; color: #62666b; font-size: 24px; }
+.notebook-info-toggle:hover { background: #dedcdc; }
+.notebook-info-content { position: absolute; z-index: 2; top: 40px; right: 0; min-width: 144px; padding: 8px; border: 1px solid #dedcdc; border-radius: 12px; background: #fff; box-shadow: 0 4px 16px #20212414; }
+.notebook-info-content button { width: 100%; padding: 10px 12px; border: 0; border-radius: 8px; background: transparent; color: #b3261e; text-align: left; }
+.notebook-info-content button:hover { background: #fce8e6; }
 .notebook-card-text { margin-top: 0; }
 .notebook-card h2 { overflow: hidden; margin: 0 0 6px; font-size: 21px; font-weight: 600; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
 .notebook-card p { margin: 0; color: #74777c; font-size: 15px; line-height: 1.5; }
