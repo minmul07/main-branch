@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
 import { initialSubjects, mockDocuments } from './mocks/data'
+import ConfirmPopup from './components/ConfirmPopup'
 import SubjectCreateForm from './components/SubjectCreateForm'
 
 function App() {
   const [subjects, setSubjects] = useState(initialSubjects)
   const [isAdding, setIsAdding] = useState(false)
   const [openSubjectMenuId, setOpenSubjectMenuId] = useState<number | null>(null)
+  const [subjectToDeleteId, setSubjectToDeleteId] = useState<number | null>(null)
+  const subjectToDelete = subjects.find((subject) => subject.id === subjectToDeleteId)
 
   useEffect(() => {
     if (openSubjectMenuId === null) return
@@ -26,9 +29,16 @@ function App() {
     setIsAdding(false)
   }
 
-  function handleDeleteSubject(subjectId: number) {
-    setSubjects((currentSubjects) => currentSubjects.filter((subject) => subject.id !== subjectId))
+  function handleRequestDelete(subjectId: number) {
     setOpenSubjectMenuId(null)
+    setSubjectToDeleteId(subjectId)
+  }
+
+  function handleConfirmDelete() {
+    if (subjectToDeleteId === null) return
+
+    setSubjects((currentSubjects) => currentSubjects.filter((subject) => subject.id !== subjectToDeleteId))
+    setSubjectToDeleteId(null)
   }
 
   return (
@@ -51,6 +61,16 @@ function App() {
         <SubjectCreateForm
           onClose={() => setIsAdding(false)}
           onCreateSubject={handleCreateSubject}
+        />
+      )}
+
+      {subjectToDelete && (
+        <ConfirmPopup
+          title="과목 삭제 확인"
+          message={`${subjectToDelete.name} 과목을 삭제하시겠습니까?`}
+          confirmLabel="삭제"
+          onClose={() => setSubjectToDeleteId(null)}
+          onConfirm={handleConfirmDelete}
         />
       )}
 
@@ -89,7 +109,7 @@ function App() {
                       role="dialog"
                       aria-label={`${subject.name} 메뉴`}
                     >
-                      <button type="button" onClick={() => handleDeleteSubject(subject.id)}>
+                      <button type="button" onClick={() => handleRequestDelete(subject.id)}>
                         삭제
                       </button>
                     </div>

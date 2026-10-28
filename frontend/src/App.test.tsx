@@ -55,16 +55,42 @@ test('shows one subject menu at a time and closes it when clicking outside', () 
   expect(screen.queryByRole('dialog')).toBeNull()
 })
 
-test('deletes the selected subject from the list', () => {
+test('confirms before deleting the selected subject', () => {
   render(<App />)
   const subjectList = screen.getByRole('list', { name: '과목 목록' })
   const cards = within(subjectList).getAllByRole('listitem')
 
   fireEvent.click(within(cards[0]).getByRole('button', { name: '자료구조 메뉴' }))
   fireEvent.click(within(cards[0]).getByRole('button', { name: '삭제' }))
+  let confirmDialog = screen.getByRole('dialog', { name: '과목 삭제 확인' })
+  expect(within(confirmDialog).getByText('자료구조 과목을 삭제하시겠습니까?')).toBeTruthy()
+  expect(within(subjectList).getAllByRole('listitem')).toHaveLength(2)
+
+  fireEvent.click(within(confirmDialog).getByRole('button', { name: '취소' }))
+  expect(screen.queryByRole('dialog', { name: '과목 삭제 확인' })).toBeNull()
+  expect(within(subjectList).getAllByRole('listitem')).toHaveLength(2)
+
+  fireEvent.click(within(cards[0]).getByRole('button', { name: '자료구조 메뉴' }))
+  fireEvent.click(within(cards[0]).getByRole('button', { name: '삭제' }))
+  confirmDialog = screen.getByRole('dialog', { name: '과목 삭제 확인' })
+  fireEvent.click(within(confirmDialog).getByRole('button', { name: '삭제' }))
 
   const remainingCards = within(subjectList).getAllByRole('listitem')
   expect(remainingCards).toHaveLength(1)
   expect(within(remainingCards[0]).getByRole('heading', { name: '오픈소스소프트웨어개발' })).toBeTruthy()
-  expect(screen.queryByRole('dialog')).toBeNull()
+  expect(screen.queryByRole('dialog', { name: '과목 삭제 확인' })).toBeNull()
+})
+
+test('closes deletion confirmation on outside click without deleting', () => {
+  render(<App />)
+  const subjectList = screen.getByRole('list', { name: '과목 목록' })
+  const cards = within(subjectList).getAllByRole('listitem')
+
+  fireEvent.click(within(cards[0]).getByRole('button', { name: '자료구조 메뉴' }))
+  fireEvent.click(within(cards[0]).getByRole('button', { name: '삭제' }))
+  const confirmDialog = screen.getByRole('dialog', { name: '과목 삭제 확인' })
+  fireEvent.click(confirmDialog.parentElement as HTMLDivElement)
+
+  expect(screen.queryByRole('dialog', { name: '과목 삭제 확인' })).toBeNull()
+  expect(within(subjectList).getAllByRole('listitem')).toHaveLength(2)
 })

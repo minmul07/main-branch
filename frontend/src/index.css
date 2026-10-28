@@ -44,6 +44,9 @@ button:focus-visible, input:focus-visible, summary:focus-visible {
 .subject-modal-header h2 { margin: 0; font-size: 20px; font-weight: 600; }
 .subject-modal-close { display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #62666b; font-size: 26px; line-height: 1; }
 .subject-modal-close:hover { background: #f0eeee; }
+.confirm-popup-message { margin: 0; line-height: 1.6; overflow-wrap: anywhere; }
+.confirm-popup-actions .confirm-popup-confirm { background: #b3261e; color: #fff; }
+.confirm-popup-actions .confirm-popup-confirm:hover { background: #8c1d18; }
 .subject-create-form label { display: block; margin-bottom: 12px; }
 .subject-create-fields { display: flex; gap: 8px; }
 .subject-create-fields input { min-width: 0; width: 100%; padding: 12px; border: 1px solid #74777c; border-radius: 12px; background: #fff; }
