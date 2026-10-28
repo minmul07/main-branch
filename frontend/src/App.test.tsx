@@ -14,19 +14,25 @@ test('renders notebooks using the existing mock subjects and documents', () => {
   expect(within(cards[1]).getByText(/등록된 자료 없음.*자료 0개/)).toBeTruthy()
 })
 
-test('keeps subject validation and adds a notebook from the new notebook button', () => {
+test('validates subject name length and allows duplicate names', () => {
   render(<App />)
   fireEvent.click(screen.getByRole('button', { name: '수업 추가' }))
   fireEvent.click(screen.getByRole('button', { name: '과목 추가' }))
   expect(screen.getByRole('alert').textContent).toBe('과목 이름을 입력하시오.')
 
   const input = screen.getByRole('textbox', { name: '과목 이름' })
-  fireEvent.change(input, { target: { value: '자료구조' } })
+  fireEvent.change(input, { target: { value: '가'.repeat(101) } })
   fireEvent.click(screen.getByRole('button', { name: '과목 추가' }))
-  expect(screen.getByRole('alert').textContent).toBe('이미 존재하는 과목입니다.')
+  expect(screen.getByRole('alert').textContent).toBe('과목 이름은 100자 이하로 입력해주세요.')
 
-  fireEvent.change(input, { target: { value: '  선형대수학  ' } })
+  const hundredCharacters = '가'.repeat(100)
+  fireEvent.change(input, { target: { value: hundredCharacters } })
   fireEvent.click(screen.getByRole('button', { name: '과목 추가' }))
-  expect(screen.getByRole('heading', { name: '선형대수학' })).toBeTruthy()
+  expect(screen.getByRole('heading', { name: hundredCharacters })).toBeTruthy()
+
+  fireEvent.click(screen.getByRole('button', { name: '수업 추가' }))
+  fireEvent.change(screen.getByRole('textbox', { name: '과목 이름' }), { target: { value: '  자료구조  ' } })
+  fireEvent.click(screen.getByRole('button', { name: '과목 추가' }))
+  expect(screen.getAllByRole('heading', { name: '자료구조' })).toHaveLength(2)
   expect(screen.queryByRole('textbox')).toBeNull()
 })

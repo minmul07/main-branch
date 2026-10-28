@@ -16,8 +16,8 @@ function App() {
       setError('과목 이름을 입력하시오.')
       return
     }
-    if (subjects.some((s) => s.name === trimmed)) {
-      setError('이미 존재하는 과목입니다.')
+    if ([...trimmed].length > 100) {
+      setError('과목 이름은 100자 이하로 입력해주세요.')
       return
     }
 
