@@ -51,6 +51,10 @@ function App() {
     const nextId = Math.max(0, ...subjects.map((s) => s.id)) + 1
     setSubjects([...subjects, { id: nextId, name }])
     setIsAdding(false)
+    window.history.pushState({}, '', `/subjects/${nextId}`)
+    setActiveSubjectId(nextId)
+    setSelectedDocumentId(null)
+    setOpenSubjectMenuId(null)
   }
 
   function navigateToSubjectList() {
