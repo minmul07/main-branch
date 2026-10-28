@@ -77,12 +77,6 @@ function App() {
       <ul className="notebook-grid" aria-label="과목 목록">
         {subjects.map((subject) => {
           const documents = mockDocuments.filter((document) => document.subject_id === subject.id)
-          const latestUpload = documents.map((document) => document.uploaded_at).sort().at(-1)
-          const date = latestUpload
-            ? new Intl.DateTimeFormat('ko-KR', {
-                year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Seoul',
-              }).format(new Date(latestUpload))
-            : '등록된 자료 없음'
 
           return (
             <li
@@ -118,7 +112,7 @@ function App() {
               </div>
               <div className="notebook-card-text">
                 <h2 title={subject.name}>{subject.name}</h2>
-                <p>{date}<span aria-hidden="true"> · </span>자료 {documents.length}개</p>
+                <p>자료 {documents.length}개</p>
               </div>
             </li>
           )

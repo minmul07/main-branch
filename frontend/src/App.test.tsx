@@ -9,9 +9,11 @@ test('renders notebooks using the existing mock subjects and documents', () => {
   const cards = within(screen.getByRole('list', { name: '과목 목록' })).getAllByRole('listitem')
   expect(cards).toHaveLength(2)
   expect(within(cards[0]).getByRole('heading', { name: '자료구조' })).toBeTruthy()
-  expect(within(cards[0]).getByText(/2026년 10월 4일.*자료 2개/)).toBeTruthy()
+  expect(within(cards[0]).getByText('자료 2개')).toBeTruthy()
+  expect(within(cards[0]).queryByText(/2026년/)).toBeNull()
   expect(within(cards[1]).getByRole('heading', { name: '오픈소스소프트웨어개발' })).toBeTruthy()
-  expect(within(cards[1]).getByText(/등록된 자료 없음.*자료 0개/)).toBeTruthy()
+  expect(within(cards[1]).getByText('자료 0개')).toBeTruthy()
+  expect(within(cards[1]).queryByText('등록된 자료 없음')).toBeNull()
 })
 
 test('validates subject name length and allows duplicate names', () => {
