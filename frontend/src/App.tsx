@@ -1,30 +1,14 @@
 import { useState } from 'react'
-import type { FormEvent } from 'react'
 import { initialSubjects, mockDocuments } from './mocks/data'
+import SubjectCreateForm from './components/SubjectCreateForm'
 
 function App() {
   const [subjects, setSubjects] = useState(initialSubjects)
-  const [name, setName] = useState('')
-  const [error, setError] = useState('')
   const [isAdding, setIsAdding] = useState(false)
 
-  function handleSubmit(e: FormEvent) {
-    e.preventDefault()
-    const trimmed = name.trim()
-
-    if (trimmed === '') {
-      setError('과목 이름을 입력하시오.')
-      return
-    }
-    if ([...trimmed].length > 100) {
-      setError('과목 이름은 100자 이하로 입력해주세요.')
-      return
-    }
-
+  function handleCreateSubject(name: string) {
     const nextId = Math.max(0, ...subjects.map((s) => s.id)) + 1
-    setSubjects([...subjects, { id: nextId, name: trimmed }])
-    setName('')
-    setError('')
+    setSubjects([...subjects, { id: nextId, name }])
     setIsAdding(false)
   }
 
@@ -37,10 +21,7 @@ function App() {
           type="button"
           aria-expanded={isAdding}
           aria-controls="add-subject"
-          onClick={() => {
-            setIsAdding(!isAdding)
-            setError('')
-          }}
+          onClick={() => setIsAdding(true)}
         >
           <span className="plus" aria-hidden="true">＋</span>
           수업 추가
@@ -48,22 +29,10 @@ function App() {
       </header>
 
       {isAdding && (
-        <form id="add-subject" className="add-subject" onSubmit={handleSubmit}>
-          <label htmlFor="subject-name">과목 이름</label>
-          <div className="add-subject-fields">
-            <input
-              id="subject-name"
-              autoFocus
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="과목 이름"
-              aria-invalid={Boolean(error)}
-              aria-describedby={error ? 'subject-error' : undefined}
-            />
-            <button type="submit">과목 추가</button>
-          </div>
-          {error && <p id="subject-error" role="alert">{error}</p>}
-        </form>
+        <SubjectCreateForm
+          onClose={() => setIsAdding(false)}
+          onCreateSubject={handleCreateSubject}
+        />
       )}
 
       <ul className="notebook-grid" aria-label="과목 목록">
