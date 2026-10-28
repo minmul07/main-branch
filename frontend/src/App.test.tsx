@@ -1,19 +1,75 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
-import { expect, test } from 'vitest'
+import { beforeEach, expect, test } from 'vitest'
 import App from './App'
 
-test('renders notebooks using the existing mock subjects and documents', () => {
+beforeEach(() => {
+  window.history.replaceState({}, '', '/')
+})
+
+test('renders the existing subjects with five mock documents each', () => {
   render(<App />)
 
   expect(screen.getByRole('heading', { level: 1, name: '내 수업' })).toBeTruthy()
   const cards = within(screen.getByRole('list', { name: '과목 목록' })).getAllByRole('listitem')
   expect(cards).toHaveLength(2)
   expect(within(cards[0]).getByRole('heading', { name: '자료구조' })).toBeTruthy()
-  expect(within(cards[0]).getByText('자료 2개')).toBeTruthy()
+  expect(within(cards[0]).getByText('자료 5개')).toBeTruthy()
   expect(within(cards[0]).queryByText(/2026년/)).toBeNull()
   expect(within(cards[1]).getByRole('heading', { name: '오픈소스소프트웨어개발' })).toBeTruthy()
-  expect(within(cards[1]).getByText('자료 0개')).toBeTruthy()
+  expect(within(cards[1]).getByText('자료 5개')).toBeTruthy()
   expect(within(cards[1]).queryByText('등록된 자료 없음')).toBeNull()
+})
+
+test('shows a PDF sidebar and the selected document metadata', () => {
+  render(<App />)
+
+  fireEvent.click(screen.getByRole('link', { name: '자료구조 과목 열기' }))
+  expect(window.location.pathname).toBe('/subjects/1')
+  expect(screen.getByRole('heading', { level: 1, name: '자료구조' })).toBeTruthy()
+  expect(screen.getByRole('complementary', { name: '자료 목록' })).toBeTruthy()
+  expect(screen.getByText('PDF를 선택하면 파일 정보가 여기에 표시됩니다.')).toBeTruthy()
+
+  const documentRows = within(screen.getByRole('list', { name: '자료구조 자료 목록' })).getAllByRole('button')
+  expect(documentRows).toHaveLength(5)
+  documentRows.forEach((row, index) => {
+    expect(row.textContent).toBe(`test${index + 1}.pdf${index + 1}주차`)
+    expect(row.getAttribute('aria-pressed')).toBe('false')
+  })
+
+  fireEvent.click(documentRows[0])
+  expect(documentRows[0].getAttribute('aria-pressed')).toBe('true')
+  const details = screen.getByRole('region', { name: '자료 정보' })
+  expect(within(details).getByText('test1.pdf')).toBeTruthy()
+  expect(within(details).getByText('1주차')).toBeTruthy()
+  expect(within(details).getByText('240 KB')).toBeTruthy()
+  expect(within(details).getByText('12페이지')).toBeTruthy()
+  expect(within(details).getByText('추가 일시').parentElement?.querySelector('dd')?.textContent).not.toBe('')
+
+  fireEvent.click(documentRows[1])
+  expect(documentRows[0].getAttribute('aria-pressed')).toBe('false')
+  expect(documentRows[1].getAttribute('aria-pressed')).toBe('true')
+  expect(within(details).getByText('test2.pdf')).toBeTruthy()
+
+  fireEvent.click(documentRows[4])
+  expect(within(details).getByText('확인 전')).toBeTruthy()
+
+  fireEvent.click(screen.getByRole('button', { name: '내 수업' }))
+  expect(window.location.pathname).toBe('/')
+})
+
+test('newly created subjects also receive the five mock PDF rows', () => {
+  render(<App />)
+
+  fireEvent.click(screen.getByRole('button', { name: '수업 추가' }))
+  fireEvent.change(screen.getByRole('textbox', { name: '과목 이름' }), { target: { value: '새 과목' } })
+  fireEvent.click(screen.getByRole('button', { name: '과목 추가' }))
+  fireEvent.click(screen.getByRole('link', { name: '새 과목 과목 열기' }))
+
+  expect(window.location.pathname).toBe('/subjects/3')
+  const documentRows = within(screen.getByRole('list', { name: '새 과목 자료 목록' })).getAllByRole('button')
+  expect(documentRows).toHaveLength(5)
+  expect(documentRows[0].textContent).toBe('test1.pdf1주차')
+  expect(documentRows[4].textContent).toBe('test5.pdf5주차')
 })
 
 test('validates subject name length and allows duplicate names', () => {
