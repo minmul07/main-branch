@@ -159,3 +159,52 @@ test('closes deletion confirmation on outside click without deleting', () => {
   expect(screen.queryByRole('dialog', { name: '과목 삭제 확인' })).toBeNull()
   expect(within(subjectList).getAllByRole('listitem')).toHaveLength(2)
 })
+
+test('keeps keyboard focus inside the subject creation dialog and restores its opener', () => {
+  render(<App />)
+  const opener = screen.getByRole('button', { name: '수업 추가' })
+  opener.focus()
+  fireEvent.click(opener)
+
+  const input = screen.getByRole('textbox', { name: '과목 이름' })
+  const cancelButton = screen.getByRole('button', { name: '취소' })
+  const submitButton = screen.getByRole('button', { name: '과목 추가' })
+  expect(document.activeElement).toBe(input)
+
+  submitButton.focus()
+  fireEvent.keyDown(submitButton, { key: 'Tab' })
+  const closeButton = screen.getByRole('button', { name: '팝업 닫기' })
+  expect(document.activeElement).toBe(closeButton)
+  closeButton.focus()
+  fireEvent.keyDown(closeButton, { key: 'Tab', shiftKey: true })
+  expect(document.activeElement).toBe(submitButton)
+
+  fireEvent.click(cancelButton)
+  expect(document.activeElement).toBe(opener)
+})
+
+test('keeps keyboard focus inside the deletion dialog and restores its menu opener', () => {
+  render(<App />)
+  const menuOpener = screen.getByRole('button', { name: '자료구조 메뉴' })
+  menuOpener.focus()
+  fireEvent.click(menuOpener)
+  const deleteButton = screen.getByRole('button', { name: '삭제' })
+  deleteButton.focus()
+  fireEvent.click(deleteButton)
+
+  const dialog = screen.getByRole('dialog', { name: '과목 삭제 확인' })
+  const closeButton = within(dialog).getByRole('button', { name: '팝업 닫기' })
+  const cancelButton = within(dialog).getByRole('button', { name: '취소' })
+  const confirmButton = within(dialog).getByRole('button', { name: '삭제' })
+  expect(document.activeElement).toBe(cancelButton)
+
+  confirmButton.focus()
+  fireEvent.keyDown(confirmButton, { key: 'Tab' })
+  expect(document.activeElement).toBe(closeButton)
+  closeButton.focus()
+  fireEvent.keyDown(closeButton, { key: 'Tab', shiftKey: true })
+  expect(document.activeElement).toBe(confirmButton)
+
+  fireEvent.click(cancelButton)
+  expect(document.activeElement).toBe(menuOpener)
+})

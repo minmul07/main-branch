@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { MouseEvent } from 'react'
 import { getMockDocumentsForSubject, initialSubjects } from './mocks/data'
 import ConfirmPopup from './components/ConfirmPopup'
@@ -20,6 +20,9 @@ function App() {
   const [subjectToDeleteId, setSubjectToDeleteId] = useState<number | null>(null)
   const [activeSubjectId, setActiveSubjectId] = useState(() => getSubjectIdFromPath(window.location.pathname))
   const [selectedDocumentId, setSelectedDocumentId] = useState<number | null>(null)
+  const addSubjectButtonRef = useRef<HTMLButtonElement | null>(null)
+  const subjectMenuButtonRefs = useRef(new Map<number, HTMLButtonElement>())
+  const deleteFocusReturnRef = useRef<HTMLElement | null>(null)
   const subjectToDelete = subjects.find((subject) => subject.id === subjectToDeleteId)
   const activeSubject = subjects.find((subject) => subject.id === activeSubjectId)
 
@@ -75,6 +78,7 @@ function App() {
   }
 
   function handleRequestDelete(subjectId: number) {
+    deleteFocusReturnRef.current = subjectMenuButtonRefs.current.get(subjectId) ?? addSubjectButtonRef.current
     setOpenSubjectMenuId(null)
     setSubjectToDeleteId(subjectId)
   }
@@ -109,6 +113,7 @@ function App() {
           <header className="notebooks-header">
             <h1>내 수업</h1>
             <button
+              ref={addSubjectButtonRef}
               className="new-notebook"
               type="button"
               aria-expanded={isAdding}
@@ -124,6 +129,7 @@ function App() {
             <SubjectCreateForm
               onClose={() => setIsAdding(false)}
               onCreateSubject={handleCreateSubject}
+              returnFocusRef={addSubjectButtonRef}
             />
           )}
 
@@ -134,6 +140,7 @@ function App() {
               confirmLabel="삭제"
               onClose={() => setSubjectToDeleteId(null)}
               onConfirm={handleConfirmDelete}
+              returnFocusRef={deleteFocusReturnRef}
             />
           )}
 
@@ -155,6 +162,10 @@ function App() {
                   <div className="notebook-card-top">
                     <div className="notebook-info" data-subject-menu>
                       <button
+                        ref={(element) => {
+                          if (element) subjectMenuButtonRefs.current.set(subject.id, element)
+                          else subjectMenuButtonRefs.current.delete(subject.id)
+                        }}
                         className="notebook-info-toggle"
                         type="button"
                         aria-label={`${subject.name} 메뉴`}

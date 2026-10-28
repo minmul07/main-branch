@@ -1,14 +1,18 @@
 import { useState } from 'react'
 import type { FormEvent, MouseEvent } from 'react'
+import { useDialogFocus } from '../hooks/useDialogFocus'
+import type { DialogReturnFocusRef } from '../hooks/useDialogFocus'
 
 type SubjectCreateFormProps = {
   onClose: () => void
   onCreateSubject: (name: string) => void
+  returnFocusRef: DialogReturnFocusRef
 }
 
-function SubjectCreateForm({ onClose, onCreateSubject }: SubjectCreateFormProps) {
+function SubjectCreateForm({ onClose, onCreateSubject, returnFocusRef }: SubjectCreateFormProps) {
   const [name, setName] = useState('')
   const [error, setError] = useState('')
+  const dialogRef = useDialogFocus(returnFocusRef)
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -36,10 +40,12 @@ function SubjectCreateForm({ onClose, onCreateSubject }: SubjectCreateFormProps)
     <div className="subject-modal-backdrop" role="presentation" onClick={handleBackdropClick}>
       <section
         id="add-subject"
+        ref={dialogRef}
         className="subject-modal"
         role="dialog"
         aria-modal="true"
         aria-labelledby="subject-modal-title"
+        tabIndex={-1}
       >
         <header className="subject-modal-header">
           <h2 id="subject-modal-title">과목 추가</h2>
@@ -59,6 +65,7 @@ function SubjectCreateForm({ onClose, onCreateSubject }: SubjectCreateFormProps)
             <input
               id="subject-name"
               autoFocus
+              data-dialog-autofocus
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder="과목 이름"
