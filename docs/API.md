@@ -29,7 +29,7 @@ P0 MVP에서 frontend와 backend가 같은 경로와 데이터 의미를 사용�
 - 응답 `201`: 생성한 과목 `{"id": 1, "name": "운영체제"}`
 - 응답 `422`: `name` 누락, 문자열이 아닌 값(`null`, 숫자, 배열 등), 빈 값, 공백만 있는 값, 101자 이상. 오류 본문은 FastAPI 기본 형식(`detail` 배열)을 따른다.
 
-테이블은 앱 시작 시 `Base.metadata.create_all`로 없을 때만 생성한다. 마이그레이션 도구는 아직 사용하지 않는다.
+`subjects` 테이블은 #7의 초기화 명령(`uv run python -m backend.app.init_db`)으로 준비한다. 앱 시작이나 import만으로 테이블을 만들지 않는다.
 
 ## MVP endpoint
 

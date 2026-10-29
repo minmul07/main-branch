@@ -16,7 +16,11 @@ def list_subjects(db: Session = Depends(get_db)) -> list[SubjectRead]:
 
 @router.post("", response_model=SubjectRead, status_code=status.HTTP_201_CREATED)
 def create_subject(payload: SubjectCreate, db: Session = Depends(get_db)) -> SubjectRead:
-    subject = subject_repository.create_subject(db, payload.name)
-    db.commit()
+    try:
+        subject = subject_repository.create_subject(db, payload.name)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     db.refresh(subject)
     return SubjectRead.model_validate(subject)
