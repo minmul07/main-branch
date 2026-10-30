@@ -54,6 +54,16 @@ backend 컨테이너의 `DATABASE_PATH`는 `/data/app.db`이며 `/data`에 Compo
 
 Docker 없이 실행할 때 `DATABASE_PATH`가 미지정 또는 빈 값이면 기존 `backend/app.db`를 사용합니다. 사용자 지정 경로를 사용하는 경우 상위 디렉터리를 미리 생성해야 합니다. 기존 로컬 DB는 Docker 볼륨으로 자동 복사하지 않습니다. 프로젝트 이름이나 실행 폴더 이름이 바뀌면 다른 볼륨을 사용할 수 있습니다.
 
+### 테이블 초기화
+
+`subjects` 테이블은 초기화 명령으로 준비합니다. 앱 시작이나 import만으로는 테이블이 생성되지 않습니다. 저장소 루트에서 실행합니다.
+
+```sh
+docker compose run --rm --no-deps backend uv run python -m backend.app.init_db
+```
+
+Docker 없이 실행할 때는 저장소 루트에서 `uv run python -m backend.app.init_db`를 실행합니다. 대상 DB는 위의 `DATABASE_PATH` 규칙을 따릅니다. 이미 있는 테이블과 데이터는 유지되므로 다시 실행해도 됩니다.
+
 데이터까지 초기화하려는 경우에만 다음 명령을 실행합니다. **해당 Compose 프로젝트의 SQLite 데이터가 삭제됩니다.**
 
 ```sh

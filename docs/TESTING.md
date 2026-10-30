@@ -29,6 +29,16 @@ uv run pytest
 
 - `backend/tests/conftest.py`가 모든 테스트에서 `database.engine`을 `tmp_path`의 임시 SQLite로 교체해 개발용 DB를 건드리지 않습니다. Subject API 테스트는 임시 DB에 필요한 테이블을 직접 만듭니다.
 
+### Subject Repository (`backend/tests/test_subject_repository.py`)
+
+- 임시 SQLite 파일에 `init_db()`로 테이블을 만들고 개발용 DB를 사용하지 않습니다.
+- 초기화를 다시 실행해도 기존 과목 데이터가 유지되어야 합니다.
+- `create_subject`는 ID가 있는 Subject를 반환하고, 같은 이름도 별도 ID로 생성해야 합니다.
+- `create_subject`는 자체적으로 commit하지 않아야 합니다. 생성 직후 별도 연결에서 조회하면 0건이어야 합니다.
+- `list_subjects`는 데이터가 없으면 `[]`를, 있으면 ID 오름차순 목록을 반환해야 합니다.
+- 호출자가 commit한 과목은 엔진을 해제하고 다시 연결해도 조회되어야 합니다.
+- 생성 후 호출자가 rollback하면 과목이 저장되지 않아야 합니다.
+
 ### Subject API (`backend/tests/test_subjects.py`)
 
 - 과목이 없으면 `GET /subjects`가 200과 `[]`를 반환해야 합니다.
