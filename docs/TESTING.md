@@ -79,6 +79,24 @@ docker compose run --rm --no-deps frontend npm run build
 docker compose run --rm --no-deps frontend npm run lint
 ```
 
+### 백엔드 시작 시 DB 초기화
+
+- 테스트 명령은 이미지의 기본 명령을 대체하므로 pytest만 실행하고 개발 DB를 초기화하지 않습니다. 새 격리 볼륨을 사용하려면 고유한 `COMPOSE_PROJECT_NAME`을 지정합니다.
+- `docker compose up --build -d` 후 `docker compose ps`에서 서비스를 확인하고, 다음 명령으로 `subjects` 테이블이 준비됐는지 확인합니다.
+
+  ```sh
+  docker compose exec backend uv run python -c "from sqlalchemy import inspect; from backend.app.database import engine; assert 'subjects' in inspect(engine).get_table_names()"
+  ```
+
+- `POST /subjects`로 과목을 만들고 `GET /subjects`에서 확인합니다. `docker compose down` 후 같은 프로젝트를 다시 시작하고 해당 과목이 유지되는지 확인합니다. 이어서 `docker compose restart backend`를 실행하고 다시 `GET /subjects`를 호출해 데이터 보존과 초기화 재실행을 확인합니다.
+- 실패 동작은 격리 프로젝트에서 다음 명령으로 확인합니다. 명령이 실패 상태로 끝나고 초기화 오류를 출력하며 Uvicorn은 시작하지 않아야 합니다.
+
+  ```sh
+  docker compose run --rm --no-deps -e DATABASE_PATH=/proc/issue18-check.db backend
+  ```
+
+- 검증 후에는 격리된 프로젝트의 리소스만 `docker compose down --volumes`로 제거합니다.
+
 ## fresh clone 검증
 
 1. 검증 대상 변경을 포함한 커밋을 새로운 폴더에 clone하고 해당 작업 브랜치를 checkout합니다. clone에 `.env`, `.venv`, `frontend/node_modules`, 로컬 DB가 없는지 확인합니다. 기존 작업 폴더의 파일을 복사해 검증을 대신하지 않습니다.
