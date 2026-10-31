@@ -6,7 +6,7 @@
 
 핵심 흐름은 **과목·주차별 PDF 등록 → 텍스트 추출/OCR → 페이지 단위 검색 → 원문 페이지 확인 → 메모 작성**이다. 한 사람이 자기 컴퓨터에서 브라우저로 사용하는 로컬 웹 앱을 기준으로 한다. OCR과 실패 재시도는 P0 범위에 포함한다.
 
-현재 저장소에는 React 기본 화면, FastAPI 기본 서버와 SQLite 연결이 있다. 아래 구조의 업무 기능은 구현 전이다. API 계약은 [API.md](API.md), 실행 환경과 검증 기준은 [DOCKER.md](DOCKER.md)와 [TESTING.md](TESTING.md)를 참고한다.
+현재 저장소에는 React 기본 화면, FastAPI 기본 서버와 SQLite 연결, Subject 모델·Repository와 Subject 생성·목록 API가 있다. 그 밖의 업무 기능은 구현 전이다. API 계약은 [API.md](API.md), 실행 환경과 검증 기준은 [DOCKER.md](DOCKER.md)와 [TESTING.md](TESTING.md)를 참고한다.
 
 ## 기본 구조
 
@@ -63,6 +63,31 @@ Subject
 - 페이지 번호는 1부터 시작하는 원본 PDF의 물리 페이지 순서를 기준으로 한다.
 
 별도 Week 모델의 필요성, ID 타입, 나머지 필드와 제약, 페이지별 메모 개수, 삭제 정책은 상세 설계에서 협의한다. 작업 이력이나 P1·P2 모델은 이 초안에서 확정하지 않는다.
+
+## 구현된 Subject 데이터 계층
+
+| 위치 | 책임 |
+| --- | --- |
+| `backend/app/models/subject.py` | `Subject` 모델. `subjects` 테이블에 정수 자동 생성 PK `id`와 `String(100)`, `nullable=False`인 `name`을 둔다. 과목명 중복을 허용한다. |
+| `backend/app/repositories/subject.py` | `create_subject(session, name) -> Subject`는 검증된 이름으로 생성하고 `flush`로 ID를 확보한 객체를 반환한다. commit하지 않는다. `list_subjects(session) -> list[Subject]`는 ID 오름차순으로 반환하고 데이터가 없으면 `[]`를 반환한다. |
+| `backend/app/init_db.py` | 모델을 등록한 뒤 `Base.metadata.create_all`로 테이블을 준비한다. 이미 있는 테이블과 데이터는 유지한다. |
+
+- 이름의 앞뒤 공백 제거, 타입 검사, 1~100자 길이 검증은 API 요청 스키마가 담당한다. Repository는 검증된 이름을 전달받는다.
+- Repository는 전달받은 Session만 사용한다. 생성 작업의 commit과 예외 시 rollback은 API Router가 담당한다.
+- 테이블은 저장소 루트에서 `uv run python -m backend.app.init_db`로 준비한다. 앱 시작이나 import만으로 테이블을 만들지 않는다. Docker 절차는 [DOCKER.md](DOCKER.md#테이블-초기화)를 참고한다.
+- 이번 단계는 새 DB의 초기 테이블 생성까지다. 스키마 마이그레이션, 기존 DB 초기화, 다른 모델의 FK·cascade는 후속 작업이다.
+
+## 후속 Document 메타데이터 방향 (미구현)
+
+Document 모델과 Repository는 아직 구현하지 않았다. 후속 Document 작업에서는 파일명·과목 ID·주차와 함께 다음 필드를 다룬다.
+
+| 필드 | 저장·응답 방향 |
+| --- | --- |
+| `uploaded_at` | 서버가 자료 등록 시 생성하는 UTC 일시. API에서는 `Z`로 끝나는 ISO 8601 문자열로 반환 |
+| `file_size_bytes` | 서버가 확인한 원본 파일의 바이트 크기, 0 이상 정수 |
+| `page_count` | PDF 처리 후 확인한 페이지 수. 확인 전에는 `null` |
+
+실제 날짜 저장 타입, 처리 상태, 원본 파일 제공 계약은 후속 Document 작업에서 확정한다.
 
 ## 다음 합의 사항
 
