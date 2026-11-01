@@ -87,6 +87,7 @@ button:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visibl
 .pdf-pages { width: max-content; min-width: 100%; }
 .pdf-page { margin: 0 auto 20px; background: white; box-shadow: 0 2px 10px #0002; }
 .pdf-page canvas { display: block; width: 100%; height: auto; }
+.pdf-page canvas[hidden] { display: none; }
 .pdf-scrollbars { position: absolute; inset: 0; opacity: 0; pointer-events: none; transition: opacity 250ms ease; }
 .pdf-scrollbars.is-visible { opacity: 1; }
 .pdf-scrollbar { position: absolute; display: flex; touch-action: none; pointer-events: auto; }

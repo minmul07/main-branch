@@ -56,6 +56,31 @@ test('offers retry when the PDF cannot be loaded', async () => {
   expect(getDocument).toHaveBeenCalledTimes(2)
 })
 
+test('automatically retries a page render once after a transient failure', async () => {
+  const renderPage = vi.fn().mockImplementationOnce(() => ({ promise: Promise.reject(new Error('temporary')), cancel }))
+    .mockImplementation(() => ({ promise: Promise.resolve(), cancel }))
+  getPage.mockImplementation(async (number: number) => ({ getViewport: ({ scale }: { scale: number }) => ({ width: 100 * scale, height: 200 * scale }), render: number === 1 ? renderPage : () => ({ promise: Promise.resolve(), cancel }) }))
+  render(<PdfViewer documentId={7} />)
+  await waitFor(() => expect(renderPage).toHaveBeenCalledTimes(2))
+  expect(screen.queryByRole('alert')).toBeNull()
+  expect(screen.getByLabelText('1페이지').hasAttribute('hidden')).toBe(false)
+})
+
+test('offers page retry after two failed renders and recovers on retry', async () => {
+  const renderPage = vi.fn().mockImplementationOnce(() => ({ promise: Promise.reject(new Error('failed')), cancel }))
+    .mockImplementationOnce(() => ({ promise: Promise.reject(new Error('failed')), cancel }))
+    .mockImplementation(() => ({ promise: Promise.resolve(), cancel }))
+  getPage.mockImplementation(async (number: number) => ({ getViewport: ({ scale }: { scale: number }) => ({ width: 100 * scale, height: 200 * scale }), render: number === 1 ? renderPage : () => ({ promise: Promise.resolve(), cancel }) }))
+  render(<PdfViewer documentId={7} />)
+  expect((await screen.findByRole('alert')).textContent).toContain('1페이지를 표시하지 못했습니다.')
+  expect(renderPage).toHaveBeenCalledTimes(2)
+  expect(screen.getByLabelText('1페이지').hasAttribute('hidden')).toBe(true)
+  fireEvent.click(screen.getByRole('button', { name: '다시 시도' }))
+  await waitFor(() => expect(renderPage).toHaveBeenCalledTimes(3))
+  expect(screen.queryByRole('alert')).toBeNull()
+  expect(screen.getByLabelText('1페이지').hasAttribute('hidden')).toBe(false)
+})
+
 test('validates page input and jumps to a valid page', async () => {
   render(<PdfViewer documentId={7} />)
   await screen.findByText('/ 2')

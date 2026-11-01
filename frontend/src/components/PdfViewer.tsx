@@ -19,6 +19,7 @@ function PdfPage({ pdf, pageNumber, root, scale, defaultSize }: { pdf: PDFDocume
   const [visible, setVisible] = useState(() => typeof IntersectionObserver === 'undefined')
   const [size, setSize] = useState<PageSize | null>(null)
   const [error, setError] = useState(false)
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
     if (!root || !pageRef.current) return
@@ -29,28 +30,39 @@ function PdfPage({ pdf, pageNumber, root, scale, defaultSize }: { pdf: PDFDocume
   }, [root])
 
   useEffect(() => {
-    if (!visible) return
+    if (!visible || error) return
     let cancelled = false
     let renderTask: ReturnType<Awaited<ReturnType<PDFDocumentProxy['getPage']>>['render']> | undefined
-    pdf.getPage(pageNumber).then((page) => {
-      if (cancelled || !canvasRef.current) return
-      const canvas = canvasRef.current
-      const context = canvas.getContext('2d')
-      if (!context) throw new Error('Canvas unavailable')
-      const base = page.getViewport({ scale: CSS_UNITS })
-      setSize({ width: base.width, height: base.height })
-      const viewport = page.getViewport({ scale: CSS_UNITS * scale * (window.devicePixelRatio || 1) })
-      canvas.width = viewport.width
-      canvas.height = viewport.height
-      renderTask = page.render({ canvas, canvasContext: context, viewport })
-      return renderTask.promise
-    }).catch(() => { if (!cancelled) setError(true) })
+    async function renderPage() {
+      for (let retry = 0; retry < 2; retry++) {
+        try {
+          const page = await pdf.getPage(pageNumber)
+          if (cancelled || !canvasRef.current) return
+          const canvas = canvasRef.current
+          const context = canvas.getContext('2d')
+          if (!context) throw new Error('Canvas unavailable')
+          const base = page.getViewport({ scale: CSS_UNITS })
+          setSize({ width: base.width, height: base.height })
+          const viewport = page.getViewport({ scale: CSS_UNITS * scale * (window.devicePixelRatio || 1) })
+          canvas.width = viewport.width
+          canvas.height = viewport.height
+          renderTask = page.render({ canvas, canvasContext: context, viewport })
+          await renderTask.promise
+          return
+        } catch {
+          if (cancelled) return
+          if (retry === 1) setError(true)
+        }
+      }
+    }
+    void renderPage()
     return () => { cancelled = true; renderTask?.cancel() }
-  }, [pdf, pageNumber, visible, scale])
+  }, [pdf, pageNumber, visible, scale, error, attempt])
 
   const dimensions = size ?? defaultSize
   return <div ref={pageRef} className="pdf-page" data-page={pageNumber} style={{ width: dimensions.width * scale, aspectRatio: `${dimensions.width} / ${dimensions.height}` }}>
-    {error ? <p role="alert">{pageNumber}페이지를 표시하지 못했습니다.</p> : visible && <canvas key={scale} ref={canvasRef} aria-label={`${pageNumber}페이지`} />}
+    {error && <div role="alert"><p>{pageNumber}페이지를 표시하지 못했습니다.</p><button type="button" onClick={() => { setError(false); setAttempt((value) => value + 1) }}>다시 시도</button></div>}
+    {visible && <canvas key={scale} ref={canvasRef} aria-label={`${pageNumber}페이지`} hidden={error} />}
   </div>
 }
 
