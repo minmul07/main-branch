@@ -1,9 +1,4 @@
-import type { Subject, MockDocument } from '../types'
-
-export const initialSubjects: Subject[] = [
-  { id: 1, name: '자료구조' },
-  { id: 2, name: '오픈소스소프트웨어개발' },
-]
+import type { MockDocument } from '../types'
 
 const mockDocumentDetails = [
   { week_number: 1, filename: 'test1.pdf', uploaded_at: '2026-10-04T00:00:00Z', file_size_bytes: 245760, page_count: 12 },
