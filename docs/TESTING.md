@@ -29,6 +29,12 @@ uv run pytest
 
 - `backend/tests/conftest.py`가 모든 테스트에서 `database.engine`을 `tmp_path`의 임시 SQLite로 교체해 개발용 DB를 건드리지 않습니다. Subject API 테스트는 임시 DB에 필요한 테이블을 직접 만듭니다.
 
+### 업로드 설정 (`backend/tests/test_config.py`)
+
+- `UPLOAD_DIR`, `MAX_UPLOAD_SIZE_BYTES`, `CORS_ALLOWED_ORIGINS`가 미지정 또는 빈 값이면 기본값(`backend/uploads`, 52,428,800바이트, 로컬 Vite 5173 origin 두 개)을 사용해야 합니다. import 시 설정을 읽으므로 별도 Python 프로세스에서 확인합니다.
+- 사용자 지정 값이 적용되고, CORS origin은 쉼표로 나눈 뒤 공백과 빈 항목을 제거해야 합니다.
+- 최대 크기가 0, 음수, 정수가 아닌 값이면 `ValueError`가 발생해야 합니다.
+
 ### Subject Repository (`backend/tests/test_subject_repository.py`)
 
 - 임시 SQLite 파일에 `init_db()`로 테이블을 만들고 개발용 DB를 사용하지 않습니다.

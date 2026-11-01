@@ -35,7 +35,7 @@ FastAPI
 | Search Service | 페이지 텍스트 색인과 검색 결과 생성 |
 | Repository | 서비스에서 사용하는 SQLite 데이터 접근 |
 
-PDF 추출 라이브러리는 pdfplumber 또는 pypdf 중에서 선택한다. 오래 걸리는 PDF/OCR 처리의 실행 방식과 저장 경로는 PDF/backend 담당자가 상세 설계한다.
+PDF 처리 라이브러리는 pypdf를 사용한다. 업로드 단계에 필요한 PDF 구조 검증, 암호화 여부, 페이지 수 확인을 지원하고 페이지 텍스트 추출도 제공한다. 순수 Python 패키지라 Docker 이미지에 시스템 라이브러리를 추가하지 않아도 된다. pdfplumber는 pdfminer.six 기반으로 표·좌표 분석에 강하지만 현재 범위에는 필요하지 않아 함께 추가하지 않는다. 오래 걸리는 PDF/OCR 처리의 실행 방식과 저장 경로는 PDF/backend 담당자가 상세 설계한다.
 
 ## 담당 역할과 협업 경계
 
@@ -76,6 +76,18 @@ Subject
 - Repository는 전달받은 Session만 사용한다. 생성 작업의 commit과 예외 시 rollback은 API Router가 담당한다.
 - 테이블은 저장소 루트에서 `uv run python -m backend.app.init_db`로 준비한다. 앱 시작이나 import만으로 테이블을 만들지 않는다. Docker 절차는 [DOCKER.md](DOCKER.md#테이블-초기화)를 참고한다.
 - 이번 단계는 새 DB의 초기 테이블 생성까지다. 스키마 마이그레이션, 기존 DB 초기화, 다른 모델의 FK·cascade는 후속 작업이다.
+
+## 업로드 설정
+
+`backend/app/config.py`가 import 시 환경변수를 읽어 업로드 관련 설정을 제공한다. 미지정 또는 빈 값이면 기본값을 사용한다.
+
+| 변수 | 기본값 | 용도 |
+| --- | --- | --- |
+| `UPLOAD_DIR` | `backend/uploads` | 원본 PDF 저장 루트. Git에서 제외한다. |
+| `MAX_UPLOAD_SIZE_BYTES` | `52428800` (50 MiB) | 업로드 1건의 최대 바이트 수. 양의 정수가 아니면 시작 시 오류. |
+| `CORS_ALLOWED_ORIGINS` | `http://127.0.0.1:5173,http://localhost:5173` | 쉼표로 구분한 허용 origin. frontend 포트를 바꾸면 함께 변경한다. |
+
+설정값을 사용하는 저장 서비스·CORS 미들웨어·Docker 경로(`/data/uploads`)는 #17의 후속 단계에서 연결한다.
 
 ## 후속 Document 메타데이터 방향 (미구현)
 

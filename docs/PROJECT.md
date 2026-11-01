@@ -37,7 +37,7 @@
 | :---- | :---- | :---- |
 | 언어 | Python(3.14), TypeScript | PDF/OCR 처리와 웹 UI 구현에 적합  |
 | 프레임워크 | FastAPI, React + Vite | FastAPI: REST API 구현이 간결하고 OpenAPI 자동 문서화 React + Vite: PDF Viewer·검색·메모 등 동적 UI 관리 |
-| 주요 라이브러리 | PDF.js, pypdf/pdfplumber | [ ] |
+| 주요 라이브러리 | PDF.js, pypdf, python-multipart | PDF.js: 브라우저 원문 표시. pypdf: 순수 Python으로 PDF 검증·암호화 확인·페이지 수·텍스트 추출을 지원하며 시스템 의존성이 없음. python-multipart: FastAPI의 `multipart/form-data` 업로드 수신 |
 | 데이터베이스 | SQLite + FTSS, SQLAlchemy | 별도 DB 서버 없이 로컬 저장 및 전문 검색, 데이터 모델/CRUD 관리 |
 | OCR | Tesseract | 이미지 PDF 속 텍스트 인식 |
 | 빌드·테스트 도구 | Pytest + Vitest, Github Actions | Backend/Frontend 단위 테스트, PR마다 자동 테스트 |
