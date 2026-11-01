@@ -6,7 +6,7 @@
 
 핵심 흐름은 **과목·주차별 PDF 등록 → 텍스트 추출/OCR → 페이지 단위 검색 → 원문 페이지 확인 → 메모 작성**이다. 한 사람이 자기 컴퓨터에서 브라우저로 사용하는 로컬 웹 앱을 기준으로 한다. OCR과 실패 재시도는 P0 범위에 포함한다.
 
-현재 저장소에는 React 기본 화면, FastAPI 기본 서버와 SQLite 연결, Subject 모델·Repository와 Subject 생성·목록 API가 있다. 그 밖의 업무 기능은 구현 전이다. API 계약은 [API.md](API.md), 실행 환경과 검증 기준은 [DOCKER.md](DOCKER.md)와 [TESTING.md](TESTING.md)를 참고한다.
+현재 저장소에는 React 기본 화면, FastAPI 기본 서버와 SQLite 연결, Subject 모델·Repository와 Subject 생성·목록 API, Document 모델·Repository가 있다. 그 밖의 업무 기능은 구현 전이다. API 계약은 [API.md](API.md), 실행 환경과 검증 기준은 [DOCKER.md](DOCKER.md)와 [TESTING.md](TESTING.md)를 참고한다.
 
 ## 기본 구조
 
@@ -89,17 +89,32 @@ Subject
 
 설정값을 사용하는 저장 서비스·CORS 미들웨어·Docker 경로(`/data/uploads`)는 #17의 후속 단계에서 연결한다.
 
-## 후속 Document 메타데이터 방향 (미구현)
+## 구현된 Document 데이터 계층
 
-Document 모델과 Repository는 아직 구현하지 않았다. 후속 Document 작업에서는 파일명·과목 ID·주차와 함께 다음 필드를 다룬다.
+#17의 1차 범위로 모델·Repository·응답 스키마를 추가했다. 파일 저장 서비스와 `/documents` API는 같은 이슈의 후속 단계에서 연결한다.
 
-| 필드 | 저장·응답 방향 |
+| 위치 | 책임 |
 | --- | --- |
-| `uploaded_at` | 서버가 자료 등록 시 생성하는 UTC 일시. API에서는 `Z`로 끝나는 ISO 8601 문자열로 반환 |
-| `file_size_bytes` | 서버가 확인한 원본 파일의 바이트 크기, 0 이상 정수 |
-| `page_count` | PDF 처리 후 확인한 페이지 수. 확인 전에는 `null` |
+| `backend/app/models/document.py` | `Document` 모델. `documents` 테이블에 아래 필드를 둔다. 주차는 별도 Week 테이블 없이 `week_number`로 표현한다. |
+| `backend/app/repositories/document.py` | `create_document(session, ...)`는 `flush`로 ID를 확보한 객체를 반환하고 commit하지 않는다. `get_document(session, id)`는 없으면 `None`, `list_documents_by_subject(session, subject_id)`는 ID 오름차순 목록(없으면 `[]`)을 반환한다. |
+| `backend/app/schemas/document.py` | `DocumentRead` 응답 스키마. `stored_name`을 노출하지 않는다. |
+| `backend/app/init_db.py` | `Document`를 등록해 `create_all` 재실행 시 기존 `subjects` 데이터를 유지한 채 `documents` 테이블을 추가한다. |
 
-실제 날짜 저장 타입, 처리 상태, 원본 파일 제공 계약은 후속 Document 작업에서 확정한다.
+| 필드 | 타입·제약 | 의미 |
+| --- | --- | --- |
+| `id` | 정수 PK, 자동 생성 | Document ID |
+| `subject_id` | 정수, `subjects.id` FK, 인덱스 | 소속 과목 |
+| `week_number` | 정수, `> 0` | 주차 |
+| `filename` | `String(255)` | 사용자에게 보여 줄 원본 파일명 |
+| `stored_name` | `String(64)`, unique | 업로드 디렉터리 안의 서버 생성 파일명. 응답에 노출하지 않는다. |
+| `uploaded_at` | `DateTime(timezone=True)`, 기본값 현재 UTC | 서버가 기록한 등록 시각. 원본 파일 수정 시각과 다르다. |
+| `file_size_bytes` | 정수, `>= 0` | 서버가 실제로 확인한 바이트 수 |
+| `page_count` | 정수 또는 `NULL`, `NULL`이 아니면 `> 0` | 페이지 수. 확인 전 상태는 `NULL`로 두고 0으로 대체하지 않는다. 현재 업로드 흐름은 동기적으로 확인하므로 성공 응답은 1 이상이다. |
+
+- SQLite는 시간대를 저장하지 않으므로 `uploaded_at`은 항상 UTC로 기록하고, `DocumentRead`가 시간대 없는 값을 UTC로 해석해 `Z`로 끝나는 ISO 8601 문자열로 응답한다.
+- SQLite는 기본적으로 FK를 강제하지 않는다. 과목 존재 여부는 업로드 서비스에서 확인해 404로 처리한다. 삭제 cascade는 추가하지 않았다.
+- `week_number`·`page_count`의 양수 조건은 API 검증과 별도로 DB CHECK 제약으로도 막는다.
+- commit·rollback은 Repository가 아니라 파일 저장과 DB 기록을 함께 조율하는 서비스가 담당한다.
 
 ## 다음 합의 사항
 

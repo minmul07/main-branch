@@ -45,6 +45,17 @@ uv run pytest
 - 호출자가 commit한 과목은 엔진을 해제하고 다시 연결해도 조회되어야 합니다.
 - 생성 후 호출자가 rollback하면 과목이 저장되지 않아야 합니다.
 
+### Document Repository (`backend/tests/test_document_repository.py`)
+
+- 임시 SQLite 파일에 `init_db()`로 `subjects`·`documents` 테이블을 만들고 개발용 DB를 사용하지 않습니다.
+- `create_document`는 ID와 현재 UTC `uploaded_at`이 채워진 Document를 반환하고, 자체적으로 commit하지 않아야 합니다. 호출자가 rollback하면 저장되지 않아야 합니다.
+- `get_document`는 있는 ID면 Document를, 없는 ID면 `None`을 반환해야 합니다.
+- `list_documents_by_subject`는 과목별로 분리된 ID 오름차순 목록을, 자료가 없으면 `[]`를 반환해야 합니다.
+- 같은 파일명은 별도 Document로 저장되고, `stored_name` 중복은 거부되어야 합니다.
+- `week_number` 0·음수, `file_size_bytes` 음수, `page_count` 0은 DB 제약으로 거부되고, `page_count`의 `NULL`은 허용되어야 합니다.
+- 초기화를 다시 실행해도 기존 Subject·Document가 유지되고, 엔진을 다시 연결해도 조회되어야 합니다.
+- `DocumentRead`는 `stored_name`을 노출하지 않고, `uploaded_at`을 `Z`로 끝나는 UTC ISO 8601로, `page_count`의 `null`을 그대로 직렬화해야 합니다.
+
 ### Subject API (`backend/tests/test_subjects.py`)
 
 - 과목이 없으면 `GET /subjects`가 200과 `[]`를 반환해야 합니다.
