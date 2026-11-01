@@ -17,7 +17,7 @@ docker compose up --build
 | frontend | http://127.0.0.1:5173 | 5173 |
 | backend | http://127.0.0.1:8000 | 8000 |
 
-frontend는 backend의 healthcheck가 성공한 뒤 시작합니다. `docker compose ps`에서 두 서비스의 `healthy` 상태를 확인할 수 있습니다. `GET /health`는 HTTP 200과 `{"status":"ok"}`를 반환하며 DB 연결은 확인하지 않습니다. frontend healthcheck는 루트 페이지의 HTTP 200을 확인합니다. 두 서버는 컨테이너 내부에서는 `0.0.0.0`으로 실행하고, 호스트에는 `127.0.0.1`로만 공개합니다.
+backend는 Uvicorn을 실행하기 전에 DB 초기화 명령을 실행합니다. 초기화가 실패하면 backend 컨테이너가 종료되고 frontend는 backend가 healthy가 될 때까지 시작하지 않습니다. 초기화가 끝난 뒤 frontend는 backend의 healthcheck가 성공하면 시작합니다. `docker compose ps`에서 두 서비스의 `healthy` 상태를 확인할 수 있습니다. `GET /health`는 HTTP 200과 `{"status":"ok"}`를 반환하며 요청 중 DB 연결을 확인하지 않습니다. frontend healthcheck는 루트 페이지의 HTTP 200을 확인합니다. 두 서버는 컨테이너 내부에서는 `0.0.0.0`으로 실행하고, 호스트에는 `127.0.0.1`로만 공개합니다.
 
 `Ctrl+C`로 서버를 종료하고 아래 명령으로 컨테이너와 네트워크를 정리합니다. SQLite 볼륨은 유지됩니다.
 
@@ -56,13 +56,15 @@ Docker 없이 실행할 때 `DATABASE_PATH`가 미지정 또는 빈 값이면 �
 
 ### 테이블 초기화
 
-`subjects` 테이블은 초기화 명령으로 준비합니다. 앱 시작이나 import만으로는 테이블이 생성되지 않습니다. 저장소 루트에서 실행합니다.
+Docker 컨테이너는 시작할 때마다 `uv run --locked python -m backend.app.init_db`를 실행한 뒤 Uvicorn을 시작합니다. 초기화 명령은 `create_all`을 사용하므로 다시 실행해도 기존 테이블과 행을 보존합니다. 이미지 빌드나 Python import 시에는 실행하지 않습니다. 초기화에 실패하면 명령이 실패 상태로 종료되어 Uvicorn은 시작되지 않으며, 원인은 backend 컨테이너 로그에서 확인할 수 있습니다.
+
+Docker에서 초기화만 명시적으로 실행하려면 저장소 루트에서 다음 명령을 사용합니다. 이 명령은 이미지의 기본 시작 명령을 대체하므로 Uvicorn을 시작하지 않습니다.
 
 ```sh
-docker compose run --rm --no-deps backend uv run python -m backend.app.init_db
+docker compose run --rm --no-deps backend uv run --locked python -m backend.app.init_db
 ```
 
-Docker 없이 실행할 때는 저장소 루트에서 `uv run python -m backend.app.init_db`를 실행합니다. 대상 DB는 위의 `DATABASE_PATH` 규칙을 따릅니다. 이미 있는 테이블과 데이터는 유지되므로 다시 실행해도 됩니다.
+Docker 없이 실행할 때 앱 시작은 테이블을 자동 생성하지 않습니다. 저장소 루트에서 `uv run python -m backend.app.init_db`를 실행해 준비합니다. 대상 DB는 위의 `DATABASE_PATH` 규칙을 따릅니다. 이미 있는 테이블과 데이터는 유지되므로 다시 실행해도 됩니다.
 
 데이터까지 초기화하려는 경우에만 다음 명령을 실행합니다. **해당 Compose 프로젝트의 SQLite 데이터가 삭제됩니다.**
 
