@@ -116,6 +116,30 @@ Subject
 - `week_number`·`page_count`의 양수 조건은 API 검증과 별도로 DB CHECK 제약으로도 막는다.
 - commit·rollback은 Repository가 아니라 파일 저장과 DB 기록을 함께 조율하는 서비스가 담당한다.
 
+## 구현된 PDF 업로드 서비스
+
+`backend/app/services/documents.py`가 업로드 1건의 검증·저장·DB 기록과 트랜잭션 경계를 소유한다. Router는 이 서비스를 호출하고 예외를 HTTP 상태로 바꾸는 역할만 맡는다(후속 단계).
+
+`upload_document(session, *, upload_dir, max_size_bytes, subject_id, week_number, filename, file)`의 처리 순서:
+
+1. 과목 존재 확인. 없으면 `SubjectNotFoundError`(→ 404).
+2. 표시용 파일명 정리. `/`·`\` 앞의 경로를 버리고 출력 불가 문자와 앞뒤 공백을 제거한다. 빈 이름, `.`, `..`, 255자 초과는 `InvalidFilenameError`(→ 422).
+3. `upload_dir` 생성. 실패하면 `StorageError`(→ 500).
+4. `upload_dir` 안의 임시 파일(`.upload-*.tmp`)에 1 MiB 단위로 복사하며 누적 크기를 센다. 상한을 넘으면 즉시 중단하고 `UploadTooLargeError`(→ 413). 파일 전체를 메모리에 올리지 않는다.
+5. PDF 검증. 빈 파일, 앞 1024바이트에 `%PDF-` 헤더가 없는 파일, pypdf 파싱 실패, 암호화(빈 비밀번호 포함), 0페이지는 `InvalidPdfError`(→ 422). 확장자와 Content-Type은 판단에 쓰지 않는다. 텍스트가 없는 스캔 PDF도 유효하면 허용하며 OCR은 하지 않는다.
+6. UUID로 `stored_name`을 만들고 임시 파일을 `os.replace`로 최종 이름으로 옮긴다.
+7. Repository로 Document를 만들고 commit한다.
+
+어느 단계에서든 예외가 나면 rollback하고 임시 파일과 최종 파일을 삭제한 뒤 예외를 다시 던진다. 따라서 정상적인 예외 경로에서는 미완료 DB 행, 임시 파일, 참조되지 않는 최종 파일이 남지 않는다.
+
+`get_document_file_path(upload_dir, document)`는 저장된 `stored_name`으로만 경로를 만들고, 파일이 없거나 `upload_dir` 밖을 가리키면 `None`을 반환한다(→ 원본 endpoint 404).
+
+### 한계와 정리 방침
+
+- 파일시스템과 SQLite는 하나의 원자적 트랜잭션이 아니다. 프로세스가 강제 종료되면 `.upload-*.tmp` 임시 파일이나, 최종 파일 이동 후 commit 전에 종료된 경우 DB 행이 없는 최종 파일이 남을 수 있다. commit 후에는 행과 파일이 모두 있다.
+- 남은 파일은 서버를 멈춘 상태에서 정리한다. `.upload-*.tmp`는 언제나 삭제해도 되고, 그 밖의 파일은 `documents.stored_name`에 없는 경우에만 삭제한다. 자동 정리 daemon은 이번 범위에서 만들지 않는다.
+- pypdf는 검증할 때 파일을 메모리로 읽는다. 크기 상한을 먼저 확인하므로 사용량은 `MAX_UPLOAD_SIZE_BYTES` 이하로 제한된다.
+
 ## 다음 합의 사항
 
 - 주승현이 최소 관계를 바탕으로 모델과 PDF 처리 방식을 구체화하고 강서영·어승경과 연결 지점을 확인한다.

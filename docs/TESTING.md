@@ -56,6 +56,18 @@ uv run pytest
 - 초기화를 다시 실행해도 기존 Subject·Document가 유지되고, 엔진을 다시 연결해도 조회되어야 합니다.
 - `DocumentRead`는 `stored_name`을 노출하지 않고, `uploaded_at`을 `Z`로 끝나는 UTC ISO 8601로, `page_count`의 `null`을 그대로 직렬화해야 합니다.
 
+### PDF 업로드 서비스 (`backend/tests/test_document_service.py`)
+
+- 임시 SQLite와 `tmp_path` 아래 업로드 디렉터리를 사용하며 개발용 DB·`backend/uploads`를 건드리지 않습니다. 테스트 PDF는 `backend/tests/pdf_samples.py`가 코드로 생성합니다(텍스트 PDF, 이미지만 있는 스캔 PDF, 여러 페이지, 암호화, 0페이지).
+- 업로드 성공 시 Document의 주차·파일명·실제 바이트 수·페이지 수·UTC 등록 시각이 맞고, 저장 파일 바이트가 업로드와 같아야 합니다.
+- 스캔 PDF와 여러 페이지 PDF를 허용하고, 빈 파일·PDF 위장 파일·손상·잘린 파일·암호화(빈 비밀번호 포함)·0페이지 PDF를 거부해야 합니다. 거부 시 DB 행과 파일이 남지 않아야 합니다.
+- 크기 상한과 같은 파일은 허용하고 1바이트라도 넘으면 거부해야 합니다.
+- 없는 과목은 파일을 쓰기 전에 거부해야 합니다.
+- 같은 파일을 반복 업로드하면 별도 Document와 별도 파일이 생겨야 합니다.
+- 파일명은 경로 부분(`/`, `\`)을 제거하고 한글을 유지해야 하며, 빈 이름·`..`·구분자로 끝나는 이름·255자 초과를 거부해야 합니다. 경로 조작 이름으로도 업로드 디렉터리 밖에 파일이 생기면 안 됩니다.
+- commit 실패와 파일 이동 실패를 재현했을 때 DB 행·임시 파일·최종 파일이 남지 않아야 합니다. 업로드 디렉터리를 만들 수 없으면 `StorageError`가 발생해야 합니다.
+- 원본 파일이 사라진 Document는 원본 경로 조회 결과가 `None`이어야 합니다.
+
 ### Subject API (`backend/tests/test_subjects.py`)
 
 - 과목이 없으면 `GET /subjects`가 200과 `[]`를 반환해야 합니다.
