@@ -19,6 +19,7 @@ button:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visibl
 }
 
 .notebooks { padding: 56px 24px; }
+.notebooks-subject { height: 100dvh; padding-bottom: 24px; }
 .notebooks-header { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 24px; }
 .notebooks-header h1 { margin: 0; font-size: 26px; font-weight: 400; }
 .new-notebook { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 0 16px 0 12px; border: 0; border-radius: 12px; background: #a3d3ff; white-space: nowrap; }
@@ -39,13 +40,14 @@ button:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visibl
 .notebook-card-text { position: absolute; z-index: 1; right: 32px; bottom: 20px; left: 32px; margin-top: 0; pointer-events: none; }
 .notebook-card h2 { overflow: hidden; margin: 0 0 6px; font-size: 21px; font-weight: 600; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
 .notebook-card p { margin: 0; color: #74777c; font-size: 15px; line-height: 1.5; }
-.subject-page-header { display: flex; align-items: center; gap: 24px; margin-bottom: 24px; }
+.subject-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.subject-page-header { display: flex; flex-shrink: 0; align-items: center; gap: 24px; margin-bottom: 24px; }
 .subject-page-header h1, .subject-not-found h1 { overflow: hidden; margin: 0; font-size: 26px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
 .subject-page-back { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 0 14px; border: 0; border-radius: 12px; background: #f0eeee; white-space: nowrap; }
 .subject-page-back:hover { background: #e5e3e3; }
-.subject-page-layout { display: grid; grid-template-columns: 320px minmax(0, 1fr); align-items: start; gap: 24px; transition: grid-template-columns 250ms ease, gap 250ms ease; }
+.subject-page-layout { display: grid; flex: 1; min-height: 0; grid-template-columns: 320px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); align-items: start; gap: 24px; transition: grid-template-columns 250ms ease, gap 250ms ease; }
 .subject-page-layout.sidebar-collapsed { grid-template-columns: 0 minmax(0, 1fr); gap: 0; }
-.document-sidebar-container { position: relative; z-index: 2; min-width: 0; }
+.document-sidebar-container { position: relative; z-index: 2; min-width: 0; height: 100%; }
 .document-sidebar-container::before { content: ''; position: absolute; top: 0; left: 0; width: var(--sidebar-width, 320px); height: var(--sidebar-height, 140px); box-sizing: border-box; border: 1px solid #dedcdc; border-radius: 24px; background: #f7f6f6; pointer-events: none; transition: width 250ms ease, height 250ms ease; }
 .sidebar-collapsed .document-sidebar-container::before { width: 48px; height: 48px; }
 .document-sidebar-container .document-sidebar { width: 320px; transition: opacity 180ms ease 70ms, visibility 0s; }
@@ -56,7 +58,7 @@ button:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visibl
 .sidebar-morph-arrow { transform-origin: 14.5px 12px; transition: transform 250ms ease; }
 .sidebar-collapsed .sidebar-morph-icon { top: 13px; left: 13px; width: 22px; height: 22px; }
 .sidebar-collapsed .sidebar-morph-arrow { transform: scaleX(-1); }
-.document-details { display: flex; flex-direction: column; min-width: 0; height: max(480px, calc(100vh - 144px)); }
+.document-details { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; }
 .document-details h2, .document-sidebar h2 { margin: 0 0 20px; font-size: 18px; font-weight: 600; }
 .document-placeholder { display: grid; flex: 1; place-items: center; margin: 0; padding: 20px; color: #74777c; text-align: center; }
 .document-titlebar { display: flex; align-items: center; gap: 12px; min-width: 0; min-height: 48px; margin-bottom: 12px; transition: padding-left 250ms ease; }
@@ -95,7 +97,7 @@ button:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visibl
 .pdf-scrollbar-thumb { flex: none; border-radius: 999px; background: rgb(80 84 90 / 45%); }
 .pdf-scrollbar-vertical .pdf-scrollbar-thumb { width: 5px; }
 .pdf-scrollbar-horizontal .pdf-scrollbar-thumb { height: 5px; }
-.document-sidebar { position: relative; min-width: 0; max-height: calc(100vh - 112px); overflow-y: auto; padding: 20px; border: 1px solid transparent; border-radius: 24px; }
+.document-sidebar { position: relative; min-width: 0; max-height: 100%; overflow-y: auto; padding: 20px; border: 1px solid transparent; border-radius: 24px; }
 .document-sidebar h2 { margin-bottom: 14px; }
 .document-list { display: flex; flex-direction: column; gap: 8px; width: 100%; padding: 0; margin: 0; list-style: none; }
 .document-list li { width: 100%; }
@@ -125,15 +127,17 @@ button:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visibl
 .subject-create-actions .subject-create-cancel:hover { background: #f0eeee; }
 
 @media (max-width: 760px) {
-  .subject-page-layout { grid-template-columns: minmax(0, 1fr); }
-  .subject-page-layout.sidebar-collapsed { grid-template-columns: minmax(0, 1fr); }
+  .subject-page-layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, auto) minmax(0, 1fr); }
+  .subject-page-layout.sidebar-collapsed { grid-template-columns: minmax(0, 1fr); grid-template-rows: 0 minmax(0, 1fr); }
+  .document-sidebar-container { height: auto; max-height: 30dvh; }
   .document-sidebar-container .document-sidebar { width: 100%; }
   .sidebar-collapsed .document-sidebar-container { height: 0; }
-  .document-sidebar { max-height: none; }
+  .document-sidebar { max-height: 30dvh; }
 }
 
 @media (max-width: 600px) {
   .notebooks { padding: 32px 16px; }
+  .notebooks-subject { padding-bottom: 16px; }
   .notebooks-header { gap: 12px; }
   .notebooks-header h1 { font-size: 22px; }
   .notebook-grid { grid-template-columns: minmax(0, 1fr); }
@@ -143,8 +147,7 @@ button:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visibl
   .subject-page-header { align-items: flex-start; flex-direction: column; gap: 16px; }
   .subject-page-header h1, .subject-not-found h1 { max-width: 100%; font-size: 22px; }
   .subject-page-layout { gap: 16px; }
-  .document-details { height: 70vh; min-height: 400px; }
-  .document-sidebar { max-height: none; padding: 16px; }
+  .document-sidebar { padding: 16px; }
   .sidebar-morph-icon { top: 25px; left: 25px; }
   .sidebar-collapsed .sidebar-morph-icon { top: 13px; left: 13px; }
   .subject-modal-backdrop { padding: 16px; }

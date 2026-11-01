@@ -55,7 +55,7 @@ function App() {
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
     event.preventDefault(); navigate(id)
   }
-  return <main className="notebooks">
+  return <main className={`notebooks${state === 'ready' && activeId !== null && active ? ' notebooks-subject' : ''}`}>
     {state === 'loading' ? <p role="status">과목을 불러오는 중입니다.</p> : state === 'error' ?
       <section role="alert"><p>과목을 불러오지 못했습니다.</p><button type="button" onClick={() => { setState('loading'); setAttempt((n) => n + 1) }}>다시 시도</button></section> :
       activeId !== null ? active ?

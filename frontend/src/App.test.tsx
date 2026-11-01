@@ -9,7 +9,10 @@ test('loads subjects and navigates to documents', async () => {
   expect(screen.getByRole('status')).toBeTruthy()
   fireEvent.click(await screen.findByRole('link', { name: '자료구조 과목 열기' }))
   expect(window.location.pathname).toBe('/subjects/7')
+  expect(screen.getByRole('main').classList.contains('notebooks-subject')).toBe(true)
   expect(await screen.findByText('test1.pdf')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: '내 수업' }))
+  expect(screen.getByRole('main').classList.contains('notebooks-subject')).toBe(false)
 })
 test('retries failed loading and shows empty state', async () => {
   vi.stubGlobal('fetch', vi.fn().mockRejectedValueOnce(new Error()).mockResolvedValueOnce(ok([])))
