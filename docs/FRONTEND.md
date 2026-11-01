@@ -40,8 +40,6 @@ VITE_API_BASE_URL=http://127.0.0.1:8000
 
 공통 설정인 `frontend/src/config.ts`의 `API_BASE_URL`을 사용합니다. 환경변수가 없거나 빈 문자열이면 `http://127.0.0.1:8000`을 사용합니다. 변경 후에는 개발 서버를 재시작하고, 빌드 결과에 반영하려면 다시 빌드합니다. `.env.local`은 Git에서 제외됩니다. `VITE_` 환경변수는 클라이언트에 노출되므로 비밀 값을 넣지 않습니다.
 
-현재 화면에서는 API 요청을 수행하지 않습니다.
-
 Docker Compose는 루트의 선택적인 `.env` 설정을 사용합니다. `VITE_API_BASE_URL`이 미지정 또는 빈 값이면 `http://127.0.0.1:<BACKEND_PORT>`를 전달합니다. Docker 없이 실행하는 경우의 기본값 `http://127.0.0.1:8000`은 유지됩니다. `frontend/.env.local`은 Docker 이미지에 포함하지 않습니다.
 
 ## 검증
