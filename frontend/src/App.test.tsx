@@ -3,13 +3,13 @@ import { beforeEach, expect, test, vi } from 'vitest'
 import App from './App'
 const ok = (data: unknown) => ({ ok: true, json: async () => data }) as Response
 beforeEach(() => { window.history.replaceState({}, '', '/'); vi.restoreAllMocks() })
-test('loads subjects and navigates to mock documents', async () => {
-  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(ok([{ id: 7, name: '자료구조' }])))
+test('loads subjects and navigates to documents', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(ok([{ id: 7, name: '자료구조'  }])).mockResolvedValueOnce(ok([{ id: 1, filename: 'test1.pdf', week_number: 1 }])))
   render(<App />)
   expect(screen.getByRole('status')).toBeTruthy()
   fireEvent.click(await screen.findByRole('link', { name: '자료구조 과목 열기' }))
   expect(window.location.pathname).toBe('/subjects/7')
-  expect(screen.getByText('test1.pdf')).toBeTruthy()
+  expect(await screen.findByText('test1.pdf')).toBeTruthy()
 })
 test('retries failed loading and shows empty state', async () => {
   vi.stubGlobal('fetch', vi.fn().mockRejectedValueOnce(new Error()).mockResolvedValueOnce(ok([])))
@@ -68,6 +68,7 @@ test('subject menu opens one at a time and delete does nothing', async () => {
 test('allows an existing name and a 100-character name', async () => {
   const fetchMock = vi.fn().mockResolvedValueOnce(ok([{ id: 1, name: '과목' }]))
     .mockResolvedValueOnce(ok({ id: 2, name: '과목' }))
+    .mockResolvedValueOnce(ok([]))
     .mockResolvedValueOnce(ok({ id: 3, name: '가'.repeat(100) }))
   vi.stubGlobal('fetch', fetchMock)
   render(<App />)

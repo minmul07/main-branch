@@ -1,4 +1,7 @@
-import { getMockDocumentsForSubject } from '../mocks/data'
+import { useEffect, useRef, useState } from 'react'
+import { listDocuments } from '../documentsApi'
+import UploadDialog from './UploadDialog'
+import type { MockDocument } from '../types'
 import type { Subject } from '../types'
 
 type SubjectDocumentsPageProps = {
@@ -14,7 +17,16 @@ function SubjectDocumentsPage({
   onBack,
   onSelectDocument,
 }: SubjectDocumentsPageProps) {
-  const documents = getMockDocumentsForSubject(subject.id)
+  const [documents, setDocuments] = useState<MockDocument[]>([])
+  const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [attempt, setAttempt] = useState(0)
+  const [uploading, setUploading] = useState(false)
+  const addRef = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    let alive = true
+    listDocuments(subject.id).then((items) => { if (alive) { setDocuments(items); setState('ready') } }).catch(() => { if (alive) setState('error') })
+    return () => { alive = false }
+  }, [subject.id, attempt])
   const selectedDocument = documents.find((document) => document.id === selectedDocumentId)
 
   function formatFileSize(bytes: number) {
@@ -43,9 +55,13 @@ function SubjectDocumentsPage({
 
       <div className="subject-page-layout">
         <aside className="document-sidebar" aria-labelledby="document-sidebar-title">
-          <h2 id="document-sidebar-title">자료 목록</h2>
+          <div className="document-heading"><h2 id="document-sidebar-title">자료 목록</h2><button ref={addRef} type="button" aria-label="자료 추가" onClick={() => setUploading(true)}>+</button></div>
+          {uploading && <UploadDialog subjectId={subject.id} returnFocusRef={addRef} onClose={() => setUploading(false)} onUploaded={() => setAttempt((n) => n + 1)} />}
+          {state === 'loading' && <p role="status">Loading...</p>}
+          {state === 'error' && <div role="alert">자료를 불러오지 못했습니다. <button type="button" onClick={() => { setState('loading'); setAttempt((n) => n + 1) }}>다시 시도</button></div>}
+          {state === 'ready' && documents.length === 0 && <p>등록된 자료가 없습니다.</p>}
           <ul className="document-list" aria-label={`${subject.name} 자료 목록`}>
-            {documents.map((document) => (
+            {state === 'ready' && documents.map((document) => (
               <li key={document.id}>
                 <button
                   className="document-row"

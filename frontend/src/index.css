@@ -107,3 +107,16 @@ button:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visibl
 @media (prefers-reduced-motion: reduce) {
   .notebook-card { transition: none; }
 }
+.document-heading { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
+.document-heading h2 { margin:0; }
+.document-heading button { border:0; border-radius:10px; background:#a3d3ff; width:36px; height:36px; font-size:24px; }
+.upload-modal { width:min(100%, 560px); }
+.upload-drop { padding:28px 16px; border:2px dashed #a3c9ed; border-radius:18px; text-align:center; background:#f5faff; }
+.upload-drop p { color:#62666b; font-size:14px; }
+.upload-drop button { border:0; border-radius:10px; padding:10px 16px; background:#a3d3ff; }
+.upload-list { list-style:none; padding:0; display:grid; gap:8px; }
+.upload-list li { display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding:12px; border-radius:12px; background:#f7f6f6; }
+.upload-name { flex:1; min-width:100px; overflow-wrap:anywhere; }
+.upload-list input { width:64px; padding:7px; border:1px solid #aaa; border-radius:8px; }
+.upload-list li > button { border:0; background:transparent; font-size:20px; }
+.upload-list small { flex-basis:100%; color:#62666b; overflow-wrap:anywhere; }

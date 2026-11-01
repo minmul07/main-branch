@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { MouseEvent } from 'react'
 import { listSubjects, createSubject } from './subjectsApi'
-import { getMockDocumentsForSubject } from './mocks/data'
 import type { Subject } from './types'
 import SubjectCreateForm from './components/SubjectCreateForm'
 import SubjectDocumentsPage from './components/SubjectDocumentsPage'
@@ -60,7 +59,7 @@ function App() {
     {state === 'loading' ? <p role="status">과목을 불러오는 중입니다.</p> : state === 'error' ?
       <section role="alert"><p>과목을 불러오지 못했습니다.</p><button type="button" onClick={() => { setState('loading'); setAttempt((n) => n + 1) }}>다시 시도</button></section> :
       activeId !== null ? active ?
-        <SubjectDocumentsPage subject={active} selectedDocumentId={selectedId} onBack={() => navigate(null)} onSelectDocument={setSelectedId} /> :
+        <SubjectDocumentsPage key={active.id} subject={active} selectedDocumentId={selectedId} onBack={() => navigate(null)} onSelectDocument={setSelectedId} /> :
         <section className="subject-not-found"><h1>과목을 찾을 수 없습니다.</h1><button type="button" onClick={() => navigate(null)}>내 수업으로 돌아가기</button></section> :
       <>
         <header className="notebooks-header"><h1>내 수업</h1><button ref={addRef} className="new-notebook" type="button" aria-expanded={adding} aria-controls="add-subject" onClick={() => setAdding(true)}><span className="plus" aria-hidden="true">＋</span>수업 추가</button></header>
@@ -76,7 +75,7 @@ function App() {
               </div>}
             </div>
           </div>
-          <div className="notebook-card-text"><h2 title={subject.name}>{subject.name}</h2><p>자료 {getMockDocumentsForSubject(subject.id).length}개</p></div>
+          <div className="notebook-card-text"><h2 title={subject.name}>{subject.name}</h2></div>
         </li>)}</ul>
       </>}
   </main>

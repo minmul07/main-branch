@@ -179,3 +179,4 @@ docker compose run --rm --no-deps frontend npm run lint
 - frontend 제목 수정·복원이 페이지 새로고침 없이 HMR로 반영됐고, backend 임시 endpoint 추가·제거가 자동 재시작으로 반영됐습니다. 검증 후 임시 소스 변경은 모두 복원했습니다.
 - `/data/app.db`에서 SQLAlchemy `SELECT 1`과 기록·커밋이 성공했습니다. `down` 후 `up --build --detach --wait`로 컨테이너를 재생성한 뒤 같은 기록과 두 서비스 healthy 상태를 확인했습니다.
 - 기본값, 포트 변경, 명시적인 API URL, 빈 환경변수 처리를 `docker compose config`로 확인했습니다. Windows·macOS 직접 실행은 미검증입니다.
+- 자료 업로드 변경 시 다중 파일 선택·드롭, 주차 검증, 파일별 성공·실패와 재시도, 실제 목록 갱신을 확인한다. 실제 브라우저와 서버에서 업로드 및 새로고침 후 목록도 확인한다.
