@@ -6,7 +6,7 @@
 
 핵심 흐름은 **과목·주차별 PDF 등록 → 텍스트 추출/OCR → 페이지 단위 검색 → 원문 페이지 확인 → 메모 작성**이다. 한 사람이 자기 컴퓨터에서 브라우저로 사용하는 로컬 웹 앱을 기준으로 한다. OCR과 실패 재시도는 P0 범위에 포함한다.
 
-현재 저장소에는 React 기본 화면, FastAPI 기본 서버와 SQLite 연결, Subject 모델·Repository와 Subject 생성·목록 API, Document 모델·Repository가 있다. 그 밖의 업무 기능은 구현 전이다. API 계약은 [API.md](API.md), 실행 환경과 검증 기준은 [DOCKER.md](DOCKER.md)와 [TESTING.md](TESTING.md)를 참고한다.
+현재 저장소에는 React 기본 화면, FastAPI 기본 서버와 SQLite 연결, Subject 모델·Repository와 Subject 생성·목록 API, Document 모델·Repository·업로드 서비스와 `/documents` API가 있다. 그 밖의 업무 기능은 구현 전이다. API 계약은 [API.md](API.md), 실행 환경과 검증 기준은 [DOCKER.md](DOCKER.md)와 [TESTING.md](TESTING.md)를 참고한다.
 
 ## 기본 구조
 
@@ -118,7 +118,7 @@ Subject
 
 ## 구현된 PDF 업로드 서비스
 
-`backend/app/services/documents.py`가 업로드 1건의 검증·저장·DB 기록과 트랜잭션 경계를 소유한다. Router는 이 서비스를 호출하고 예외를 HTTP 상태로 바꾸는 역할만 맡는다(후속 단계).
+`backend/app/services/documents.py`가 업로드 1건의 검증·저장·DB 기록과 트랜잭션 경계를 소유한다. Router(`backend/app/routers/documents.py`)는 이 서비스를 호출하고 예외를 HTTP 상태로 바꾸는 역할만 맡는다.
 
 `upload_document(session, *, upload_dir, max_size_bytes, subject_id, week_number, filename, file)`의 처리 순서:
 
@@ -133,6 +133,14 @@ Subject
 어느 단계에서든 예외가 나면 rollback하고 임시 파일과 최종 파일을 삭제한 뒤 예외를 다시 던진다. 따라서 정상적인 예외 경로에서는 미완료 DB 행, 임시 파일, 참조되지 않는 최종 파일이 남지 않는다.
 
 `get_document_file_path(upload_dir, document)`는 저장된 `stored_name`으로만 경로를 만들고, 파일이 없거나 `upload_dir` 밖을 가리키면 `None`을 반환한다(→ 원본 endpoint 404).
+
+### Router와 설정 주입
+
+- `get_upload_settings()` dependency가 `config.UPLOAD_DIR`·`MAX_UPLOAD_SIZE_BYTES`를 `UploadSettings`로 묶어 endpoint에 전달한다. 테스트는 `app.dependency_overrides`로 임시 디렉터리와 상한을 명시적으로 주입한다.
+- FastAPI는 endpoint 실행 전에 multipart 본문 전체를 임시 파일로 받는다. 그래서 `UploadSizeLimitRoute`가 본문을 읽기 전에 `Content-Length`가 상한 + 64 KiB(폼 필드·경계 여유분)를 넘는 요청을 413으로 거부한다. `Content-Length`가 없거나 여유분 안이면 서비스의 실제 바이트 검사가 최종 판단한다.
+- 폼·쿼리·경로의 정수는 `IntegerString` 타입으로 정수 형태 문자열만 받고, `Form/Query/Path(gt=0)`로 양수를 검사한다. `Annotated[..., Form(gt=0)]` 형태로 써야 제약이 적용된다.
+- 원본은 Starlette `FileResponse`로 반환한다. `Content-Length`, `Accept-Ranges`, Range 요청(206/416)과 한글 파일명의 RFC 5987 `filename*`을 처리한다.
+- `main.py`가 `CORSMiddleware`로 `CORS_ALLOWED_ORIGINS`만 허용한다.
 
 ### 한계와 정리 방침
 

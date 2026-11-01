@@ -9,8 +9,8 @@ from pypdf import PdfReader
 from sqlalchemy.orm import Session
 
 from backend.app.models.document import Document
-from backend.app.models.subject import Subject
 from backend.app.repositories import document as document_repository
+from backend.app.repositories import subject as subject_repository
 
 CHUNK_SIZE = 1024 * 1024
 MAX_FILENAME_LENGTH = 255
@@ -112,7 +112,7 @@ def upload_document(
     파일 저장과 DB 기록의 트랜잭션 경계를 이 함수가 소유한다. 예외가 발생하면
     rollback하고 임시 파일과 최종 파일을 정리한 뒤 예외를 다시 던진다.
     """
-    if session.get(Subject, subject_id) is None:
+    if subject_repository.get_subject(session, subject_id) is None:
         raise SubjectNotFoundError(f"subject {subject_id} not found")
     display_name = normalize_filename(filename)
 

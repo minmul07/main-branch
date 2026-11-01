@@ -4,7 +4,7 @@
 
 P0 MVP에서 frontend와 backend가 같은 경로와 데이터 의미를 사용하기 위한 계약 초안이다. [ARCHITECTURE.md](ARCHITECTURE.md)의 역할 경계와 최소 데이터 관계를 따른다.
 
-현재 구현된 API는 `GET /health`, `GET /subjects`, `POST /subjects`다. 구현된 계약은 아래 [구현된 API](#구현된-api)에 정리하며, 그 외 업무 endpoint는 구현 전 제안이다. 팀 합의 후 구현과 OpenAPI에 반영한다.
+현재 구현된 API는 `GET /health`, `GET /subjects`, `POST /subjects`, `POST /documents`, `GET /documents`, `GET /documents/{id}`, `GET /documents/{id}/file`이다. 구현된 계약은 아래 [구현된 API](#구현된-api)에 정리하며, 그 외 업무 endpoint는 구현 전 제안이다. 팀 합의 후 구현과 OpenAPI에 반영한다.
 
 ## 공통 규칙 제안
 
@@ -31,6 +31,74 @@ P0 MVP에서 frontend와 backend가 같은 경로와 데이터 의미를 사용�
 
 `subjects` 테이블은 #7의 초기화 명령(`uv run python -m backend.app.init_db`)으로 준비한다. 앱 시작이나 import만으로 테이블을 만들지 않는다.
 
+### Document 공통
+
+- `documents` 테이블도 같은 초기화 명령으로 준비한다. 주차는 별도 Week 없이 `week_number`로 표현한다.
+- 메타데이터 형식(업로드 응답, 목록 항목, 단건 조회 공통):
+
+```json
+{
+  "id": 1,
+  "subject_id": 1,
+  "week_number": 3,
+  "filename": "3주차.pdf",
+  "uploaded_at": "2026-11-01T00:00:00Z",
+  "file_size_bytes": 245760,
+  "page_count": 12
+}
+```
+
+| 필드 | 의미 |
+| --- | --- |
+| `id` | 서버가 생성하는 양의 정수 |
+| `filename` | 업로드 파일명에서 경로 부분을 제거한 표시용 이름. 서버 내부 저장 이름·경로는 노출하지 않는다. |
+| `uploaded_at` | 서버가 기록한 등록 시각(UTC). `Z`로 끝나는 ISO 8601이며 소수점 이하 초가 붙을 수 있다. 원본 파일 수정 시각이 아니다. |
+| `file_size_bytes` | 서버가 실제로 읽은 바이트 수. 클라이언트가 보낸 크기를 쓰지 않는다. |
+| `page_count` | 정수 또는 `null`. `null`은 페이지 수 확인 전을 뜻하며 0으로 바꾸지 않는다. 현재 업로드는 페이지 수를 동기적으로 확인하므로 성공 응답에서는 항상 1 이상이다. |
+
+- ID·`subject_id`·`week_number`는 양의 정수여야 한다. 폼·쿼리·경로 문자열은 정수 형태만 허용하며 `3.0`, `3.5`처럼 소수점이 있는 값은 절삭하지 않고 422로 거부한다.
+- 검증 오류(필드 누락, 정수 아님, 0 이하)는 FastAPI 기본 `detail` 배열, 그 밖의 오류(404·413·422·500)는 `{"detail": "안내 문구"}`로 응답한다. 문구는 고정 계약이 아니다.
+
+### `POST /documents`
+
+- 요청: `multipart/form-data`. `file`(PDF 1개), `subject_id`, `week_number`
+- 응답 `201`: 생성한 Document 메타데이터. 파일 저장과 DB 기록이 끝났다는 뜻이며 텍스트 추출·OCR 완료를 뜻하지 않는다.
+- 같은 파일·파일명을 다시 올리면 별도 Document로 저장한다. 중복 판별(409)은 하지 않는다.
+- 오류
+
+| 상태 | 경우 |
+| --- | --- |
+| `404` | 없는 `subject_id` |
+| `413` | 파일이 `MAX_UPLOAD_SIZE_BYTES`(기본 50 MiB) 초과. `Content-Length`가 상한 + 64 KiB를 넘으면 본문을 받기 전에 거부하고, 그 밖에는 실제로 읽은 바이트 수로 판단한다. |
+| `422` | 필드 누락, 잘못된 정수, 0 이하 값 / 빈 파일명·`..`·255자 초과 파일명 / 빈 파일, PDF가 아닌 파일, 손상·파싱 실패, 암호화 PDF(빈 비밀번호 포함), 0페이지 PDF. 확장자와 Content-Type은 판단에 쓰지 않는다. 텍스트가 없는 스캔 PDF는 허용한다. |
+| `500` | 업로드 디렉터리 생성·쓰기 실패 등 저장 오류 |
+
+오류 시 DB 행과 업로드 파일을 남기지 않는다.
+
+### `GET /documents?subject_id={id}`
+
+- 응답 `200`: 해당 과목의 Document 배열, `id` 오름차순. 자료가 없으면 `[]`.
+- `404`: 없는 과목. `422`: `subject_id` 누락·잘못된 값.
+
+### `GET /documents/{id}`
+
+- 응답 `200`: Document 메타데이터. `404`: 없는 Document. `422`: 잘못된 ID.
+
+### `GET /documents/{id}/file`
+
+- 응답 `200`: 원본 PDF 바이트 전체.
+  - `Content-Type: application/pdf`
+  - `Content-Length`: 파일 크기
+  - `Content-Disposition: inline`. 파일명이 ASCII면 `filename="week3.pdf"`, 한글 등 그 외 문자가 있으면 `filename*=utf-8''3%EC%A3%BC%EC%B0%A8.pdf`(RFC 5987) 형식이다. 브라우저에서 바로 열린다.
+  - `Accept-Ranges: bytes`
+- Range: Starlette `FileResponse`가 처리한다. 단일 범위는 `206`과 `Content-Range`, 여러 범위는 `multipart/byteranges`, 범위를 벗어나면 `416`이다. 별도 스트리밍 시스템은 없다.
+- `404`: 없는 Document, 또는 Document는 있지만 원본 파일이 사라진 경우. `422`: 잘못된 ID.
+- 페이지 텍스트 조회(`/documents/{id}/pages/{page}`)와는 별개다.
+
+### CORS
+
+브라우저 frontend가 다른 origin에서 호출할 수 있도록 `CORS_ALLOWED_ORIGINS`(기본 `http://127.0.0.1:5173,http://localhost:5173`)만 허용한다. 메서드는 `GET`·`POST`, 요청 헤더는 `Content-Type`을 허용하고 `Content-Disposition` 응답 헤더를 노출한다. frontend 포트를 바꾸면 이 값을 함께 바꾼다.
+
 ## MVP endpoint
 
 아래 데이터는 서로 연결하기 위해 필요한 최소 의미다. 상세 응답 필드와 타입을 모두 확정한 스키마는 아니다.
@@ -40,8 +108,10 @@ P0 MVP에서 frontend와 backend가 같은 경로와 데이터 의미를 사용�
 | GET | `/subjects` | 없음 | 과목 목록: ID, 이름 |
 | POST | `/subjects` | 과목 이름 `name` | 생성한 과목 |
 | DELETE | `/subjects/{id}` | 과목 ID | 과목 삭제; 하위 자료·메모 처리 정책은 합의 필요 |
-| POST | `/documents` | PDF `file`, 과목 `subject_id`, 주차 `week_number` | 등록한 문서 ID와 처리 상태 |
-| GET | `/documents/{id}` | 문서 ID | 문서 정보: 과목, 주차, 파일명, 페이지 수, 처리 상태 |
+| POST | `/documents` | PDF `file`, 과목 `subject_id`, 주차 `week_number` | 구현됨. 생성한 Document 메타데이터 |
+| GET | `/documents?subject_id={id}` | 과목 ID | 구현됨. 과목별 Document 목록 |
+| GET | `/documents/{id}` | 문서 ID | 구현됨. Document 메타데이터. 처리 상태 필드는 OCR 단계에서 협의 |
+| GET | `/documents/{id}/file` | 문서 ID | 구현됨. 원본 PDF |
 | DELETE | `/documents/{id}` | 문서 ID | 문서 삭제; 파일·페이지·메모 정리 정책은 합의 필요 |
 | GET | `/documents/{id}/pages/{page}` | 문서 ID, 페이지 번호 | 페이지 ID, 문서 ID, 페이지 번호, 추출 텍스트 |
 | GET | `/search?q=...` | 검색어 `q`; 과목 범위 지정용 `subject_id` 제안 | 페이지 단위 검색 결과 목록 |
@@ -64,14 +134,13 @@ P0 MVP에서 frontend와 backend가 같은 경로와 데이터 의미를 사용�
 | `filename`, `subject_id`, `week_number` | 검색 결과의 자료 위치 표시 |
 | `snippet` | 검색어 주변 문맥 표시 |
 
-`GET /documents/{id}/pages/{page}`는 페이지 메타데이터와 텍스트를 조회하는 계약이다. PDF.js가 읽을 원본 PDF 제공 방식은 별도로 합의해야 한다.
+`GET /documents/{id}/pages/{page}`는 페이지 메타데이터와 텍스트를 조회하는 계약이다. PDF.js는 원본 PDF를 `GET /documents/{id}/file`에서 읽는다.
 
 메모 응답에는 최소한 메모 ID, Page ID와 내용이 필요하다. 생성·수정 시각 등 추가 필드는 Subject/Note 담당자와 frontend 담당자가 협의한다.
 
 ## 구현 전 합의할 항목
 
 - 요청·응답의 정확한 필드명·타입, 목록·오류 형식과 성공 상태 코드
-- 과목별 문서 목록 조회 방식과 원본 PDF 제공 방식
 - 업로드 처리의 동기·비동기 여부, 처리 상태 값과 실패 재시도 계약
 - 페이지 처리 중이거나 추출에 실패했을 때 페이지 조회 응답
 - 검색의 과목 범위와 결과 정렬·페이지네이션

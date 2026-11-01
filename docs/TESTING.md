@@ -68,6 +68,20 @@ uv run pytest
 - commit 실패와 파일 이동 실패를 재현했을 때 DB 행·임시 파일·최종 파일이 남지 않아야 합니다. 업로드 디렉터리를 만들 수 없으면 `StorageError`가 발생해야 합니다.
 - 원본 파일이 사라진 Document는 원본 경로 조회 결과가 `None`이어야 합니다.
 
+### Document API (`backend/tests/test_documents.py`)
+
+- 임시 SQLite(`conftest.py`의 엔진)와 `tmp_path` 업로드 디렉터리를 `get_db`·`get_upload_settings` override로 주입하고, 테스트 후 override를 정리합니다.
+- `POST /subjects` → `POST /documents` → 과목별 목록 → 단건 조회 → 원본 조회 흐름에서 201, 메타데이터 7개 필드, `Z`로 끝나는 시각, 실제 크기·페이지 수, 원본 바이트 일치와 `Content-Type`·`Content-Length`·`Content-Disposition`(한글 `filename*`, ASCII `filename`)을 확인합니다.
+- Range 요청 `bytes=0-9`가 206과 `Content-Range`, 해당 바이트를 반환해야 합니다.
+- 과목별 분리, ID 오름차순, 빈 목록 `[]`, 없는 과목·문서 404를 확인합니다.
+- `subject_id`·`week_number`·Document ID의 누락, 빈 값, 0, 음수, 문자, `3.0`·`3.5` 같은 소수 형태가 422를 반환하고 저장되지 않아야 합니다.
+- 빈 파일, PDF가 아닌 파일, 암호화, 0페이지, 잘린 PDF는 422이고 DB 행·파일이 남지 않아야 합니다. 스캔 PDF는 201입니다.
+- 빈 파일명 422, 경로 조작 파일명은 정리되어 업로드 디렉터리 안에만 저장되어야 합니다. 같은 파일 반복 업로드는 별도 ID와 별도 파일을 만들어야 합니다.
+- 실제 크기가 상한을 넘으면 413, `Content-Length`가 상한 + 여유분을 넘으면 업로드 서비스가 호출되기 전에 413이어야 합니다.
+- 업로드 디렉터리를 만들 수 없으면 500, 원본 파일이 사라지면 메타데이터는 200이고 원본은 404여야 합니다.
+- 엔진을 해제하고 다시 연결한 뒤 `init_db`를 재실행해도 Subject·Document 목록과 원본을 다시 조회할 수 있어야 합니다.
+- 설정된 frontend origin의 CORS preflight는 허용되고, 그 밖의 origin에는 `Access-Control-Allow-Origin`이 없어야 합니다.
+
 ### Subject API (`backend/tests/test_subjects.py`)
 
 - 과목이 없으면 `GET /subjects`가 200과 `[]`를 반환해야 합니다.
