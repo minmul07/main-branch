@@ -138,10 +138,10 @@ function SubjectDocumentsPage({
             </dl>
               </div>
             </div>
-            <Suspense fallback={<p role="status">PDF 뷰어를 불러오는 중...</p>}><PdfViewer key={selectedDocument.id} documentId={selectedDocument.id} /></Suspense>
+            <div className="document-viewer-box"><Suspense fallback={<p className="document-placeholder" role="status">PDF 뷰어를 불러오는 중...</p>}><PdfViewer key={selectedDocument.id} documentId={selectedDocument.id} /></Suspense></div>
             </>
           ) : (
-            <><h2 id="document-details-title" className="empty-viewer-title">PDF 뷰어</h2><p className="document-placeholder">PDF를 선택하면 원문이 여기에 표시됩니다.</p></>
+            <><div className="document-titlebar"><h2 id="document-details-title">PDF 뷰어</h2></div><div className="document-viewer-box"><p className="document-placeholder">PDF를 선택하면 원문이 여기에 표시됩니다.</p></div></>
           )}
         </section>
       </div>

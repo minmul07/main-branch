@@ -56,12 +56,13 @@ button:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visibl
 .sidebar-morph-arrow { transform-origin: 14.5px 12px; transition: transform 250ms ease; }
 .sidebar-collapsed .sidebar-morph-icon { top: 13px; left: 13px; width: 22px; height: 22px; }
 .sidebar-collapsed .sidebar-morph-arrow { transform: scaleX(-1); }
-.document-details { display: flex; flex-direction: column; min-width: 0; height: max(480px, calc(100vh - 144px)); border: 1px solid #dedcdc; border-radius: 24px; background: #fff; }
+.document-details { display: flex; flex-direction: column; min-width: 0; height: max(480px, calc(100vh - 144px)); }
 .document-details h2, .document-sidebar h2 { margin: 0 0 20px; font-size: 18px; font-weight: 600; }
 .document-placeholder { display: grid; flex: 1; place-items: center; margin: 0; padding: 20px; color: #74777c; text-align: center; }
-.document-details .empty-viewer-title { margin: 0; padding: 20px 24px; }
-.document-titlebar { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 16px 24px; }
+.document-titlebar { display: flex; align-items: center; gap: 12px; min-width: 0; min-height: 48px; margin-bottom: 12px; transition: padding-left 250ms ease; }
+.sidebar-collapsed .document-titlebar { padding-left: 60px; }
 .document-details .document-titlebar h2 { overflow: hidden; margin: 0; text-overflow: ellipsis; white-space: nowrap; }
+.document-viewer-box { display: flex; flex: 1; min-height: 0; overflow: hidden; border: 1px solid #dedcdc; border-radius: 24px; background: #fff; }
 .document-info { position: relative; flex: none; margin-left: auto; }
 .document-info > button { padding: 2px 4px; border: 0; background: transparent; color: #62666b; font-size: 20px; }
 .document-metadata { position: absolute; z-index: 3; top: 100%; right: 0; display: none; width: min(300px, 70vw); padding: 12px 16px; margin: 0; border: 1px solid #dedcdc; border-radius: 12px; background: white; box-shadow: 0 8px 24px #0002; }
@@ -69,7 +70,7 @@ button:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visibl
 .document-metadata div { display: grid; grid-template-columns: 68px minmax(0, 1fr); gap: 8px; font-size: 13px; }
 .document-metadata dt { color: #74777c; }
 .document-metadata dd { overflow-wrap: anywhere; margin: 0; }
-.pdf-viewer { display: flex; flex: 1; flex-direction: column; min-height: 0; overflow: hidden; border-radius: 0 0 23px 23px; background: #eae8e8; }
+.pdf-viewer { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; background: #eae8e8; }
 .pdf-toolbar { display: flex; align-items: center; justify-content: center; gap: 16px; padding: 8px; background: #f7f6f6; }
 .pdf-toolbar button, .pdf-page-area button { padding: 6px 12px; border: 1px solid #dedcdc; border-radius: 8px; background: white; }
 .pdf-toolbar button:disabled { opacity: .45; }
@@ -135,7 +136,7 @@ button:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visibl
 
 @media (prefers-reduced-motion: reduce) {
   .notebook-card { transition: none; }
-  .subject-page-layout, .document-sidebar-container::before, .document-sidebar-container .document-sidebar, .sidebar-collapsed .document-sidebar, .sidebar-show, .sidebar-collapsed .sidebar-show, .sidebar-morph-icon, .sidebar-morph-arrow { transition: none; }
+  .subject-page-layout, .document-titlebar, .document-sidebar-container::before, .document-sidebar-container .document-sidebar, .sidebar-collapsed .document-sidebar, .sidebar-show, .sidebar-collapsed .sidebar-show, .sidebar-morph-icon, .sidebar-morph-arrow { transition: none; }
 }
 .document-heading { display:flex; align-items:center; gap: 8px; margin-bottom:14px; }
 .document-heading h2 { flex: 1; margin:0; }
