@@ -29,6 +29,12 @@ uv run pytest
 
 - `backend/tests/conftest.py`가 모든 테스트에서 `database.engine`을 `tmp_path`의 임시 SQLite로 교체해 개발용 DB를 건드리지 않습니다. Subject API 테스트는 임시 DB에 필요한 테이블을 직접 만듭니다.
 
+### 업로드 설정 (`backend/tests/test_config.py`)
+
+- `UPLOAD_DIR`, `MAX_UPLOAD_SIZE_BYTES`, `CORS_ALLOWED_ORIGINS`가 미지정 또는 빈 값이면 기본값(`backend/uploads`, 52,428,800바이트, 로컬 Vite 5173 origin 두 개)을 사용해야 합니다. import 시 설정을 읽으므로 별도 Python 프로세스에서 확인합니다.
+- 사용자 지정 값이 적용되고, CORS origin은 쉼표로 나눈 뒤 공백과 빈 항목을 제거해야 합니다.
+- 최대 크기가 0, 음수, 정수가 아닌 값이면 `ValueError`가 발생해야 합니다.
+
 ### Subject Repository (`backend/tests/test_subject_repository.py`)
 
 - 임시 SQLite 파일에 `init_db()`로 테이블을 만들고 개발용 DB를 사용하지 않습니다.
@@ -38,6 +44,43 @@ uv run pytest
 - `list_subjects`는 데이터가 없으면 `[]`를, 있으면 ID 오름차순 목록을 반환해야 합니다.
 - 호출자가 commit한 과목은 엔진을 해제하고 다시 연결해도 조회되어야 합니다.
 - 생성 후 호출자가 rollback하면 과목이 저장되지 않아야 합니다.
+
+### Document Repository (`backend/tests/test_document_repository.py`)
+
+- 임시 SQLite 파일에 `init_db()`로 `subjects`·`documents` 테이블을 만들고 개발용 DB를 사용하지 않습니다.
+- `create_document`는 ID와 현재 UTC `uploaded_at`이 채워진 Document를 반환하고, 자체적으로 commit하지 않아야 합니다. 호출자가 rollback하면 저장되지 않아야 합니다.
+- `get_document`는 있는 ID면 Document를, 없는 ID면 `None`을 반환해야 합니다.
+- `list_documents_by_subject`는 과목별로 분리된 ID 오름차순 목록을, 자료가 없으면 `[]`를 반환해야 합니다.
+- 같은 파일명은 별도 Document로 저장되고, `stored_name` 중복은 거부되어야 합니다.
+- `week_number` 0·음수, `file_size_bytes` 음수, `page_count` 0은 DB 제약으로 거부되고, `page_count`의 `NULL`은 허용되어야 합니다.
+- 초기화를 다시 실행해도 기존 Subject·Document가 유지되고, 엔진을 다시 연결해도 조회되어야 합니다.
+- `DocumentRead`는 `stored_name`을 노출하지 않고, `uploaded_at`을 `Z`로 끝나는 UTC ISO 8601로, `page_count`의 `null`을 그대로 직렬화해야 합니다.
+
+### PDF 업로드 서비스 (`backend/tests/test_document_service.py`)
+
+- 임시 SQLite와 `tmp_path` 아래 업로드 디렉터리를 사용하며 개발용 DB·`backend/uploads`를 건드리지 않습니다. 테스트 PDF는 `backend/tests/pdf_samples.py`가 코드로 생성합니다(텍스트 PDF, 이미지만 있는 스캔 PDF, 여러 페이지, 암호화, 0페이지).
+- 업로드 성공 시 Document의 주차·파일명·실제 바이트 수·페이지 수·UTC 등록 시각이 맞고, 저장 파일 바이트가 업로드와 같아야 합니다.
+- 스캔 PDF와 여러 페이지 PDF를 허용하고, 빈 파일·PDF 위장 파일·손상·잘린 파일·암호화(빈 비밀번호 포함)·0페이지 PDF를 거부해야 합니다. 거부 시 DB 행과 파일이 남지 않아야 합니다.
+- 크기 상한과 같은 파일은 허용하고 1바이트라도 넘으면 거부해야 합니다.
+- 없는 과목은 파일을 쓰기 전에 거부해야 합니다.
+- 같은 파일을 반복 업로드하면 별도 Document와 별도 파일이 생겨야 합니다.
+- 파일명은 경로 부분(`/`, `\`)을 제거하고 한글을 유지해야 하며, 빈 이름·`..`·구분자로 끝나는 이름·255자 초과를 거부해야 합니다. 경로 조작 이름으로도 업로드 디렉터리 밖에 파일이 생기면 안 됩니다.
+- commit 실패와 파일 이동 실패를 재현했을 때 DB 행·임시 파일·최종 파일이 남지 않아야 합니다. 업로드 디렉터리를 만들 수 없으면 `StorageError`가 발생해야 합니다.
+- 원본 파일이 사라진 Document는 원본 경로 조회 결과가 `None`이어야 합니다.
+
+### Document API (`backend/tests/test_documents.py`)
+
+- 임시 SQLite(`conftest.py`의 엔진)와 `tmp_path` 업로드 디렉터리를 `get_db`·`get_upload_settings` override로 주입하고, 테스트 후 override를 정리합니다.
+- `POST /subjects` → `POST /documents` → 과목별 목록 → 단건 조회 → 원본 조회 흐름에서 201, 메타데이터 7개 필드, `Z`로 끝나는 시각, 실제 크기·페이지 수, 원본 바이트 일치와 `Content-Type`·`Content-Length`·`Content-Disposition`(한글 `filename*`, ASCII `filename`)을 확인합니다.
+- Range 요청 `bytes=0-9`가 206과 `Content-Range`, 해당 바이트를 반환해야 합니다.
+- 과목별 분리, ID 오름차순, 빈 목록 `[]`, 없는 과목·문서 404를 확인합니다.
+- `subject_id`·`week_number`·Document ID의 누락, 빈 값, 0, 음수, 문자, `3.0`·`3.5` 같은 소수 형태가 422를 반환하고 저장되지 않아야 합니다.
+- 빈 파일, PDF가 아닌 파일, 암호화, 0페이지, 잘린 PDF는 422이고 DB 행·파일이 남지 않아야 합니다. 스캔 PDF는 201입니다.
+- 빈 파일명 422, 경로 조작 파일명은 정리되어 업로드 디렉터리 안에만 저장되어야 합니다. 같은 파일 반복 업로드는 별도 ID와 별도 파일을 만들어야 합니다.
+- 실제 크기가 상한을 넘으면 413, `Content-Length`가 상한 + 여유분을 넘으면 업로드 서비스가 호출되기 전에 413이어야 합니다.
+- 업로드 디렉터리를 만들 수 없으면 500, 원본 파일이 사라지면 메타데이터는 200이고 원본은 404여야 합니다.
+- 엔진을 해제하고 다시 연결한 뒤 `init_db`를 재실행해도 Subject·Document 목록과 원본을 다시 조회할 수 있어야 합니다.
+- 설정된 frontend origin의 CORS preflight는 허용되고, 그 밖의 origin에는 `Access-Control-Allow-Origin`이 없어야 합니다.
 
 ### Subject API (`backend/tests/test_subjects.py`)
 
@@ -97,6 +140,15 @@ docker compose run --rm --no-deps frontend npm run lint
 
 - 검증 후에는 격리된 프로젝트의 리소스만 `docker compose down --volumes`로 제거합니다.
 
+### PDF 업로드 영속성
+
+- 고유한 `COMPOSE_PROJECT_NAME`으로 새 볼륨을 사용합니다. 로컬 개발 서버와 포트가 겹치면 `BACKEND_PORT`·`FRONTEND_PORT`를 바꿉니다.
+- `docker compose up --build -d --wait` 후 위 테이블 확인 명령에서 `documents`도 목록에 있어야 합니다.
+- `POST /subjects` → `POST /documents`(multipart)로 실제 PDF를 올려 201을 확인하고, `docker compose exec backend ls -la /data/uploads`에 UUID 이름의 파일이 생겼는지 확인합니다.
+- `GET /documents?subject_id=…`, `GET /documents/{id}`, `GET /documents/{id}/file`(바이트 일치, `application/pdf`)을 확인합니다. 설정된 frontend origin의 CORS preflight가 허용되는지도 확인합니다.
+- `docker compose down` 후 같은 프로젝트로 다시 `up`, 이어서 `docker compose restart backend` 후에도 목록·메타데이터·원본이 유지되어야 합니다.
+- `FRONTEND_PORT`를 바꿔 `docker compose config`의 `CORS_ALLOWED_ORIGINS` 기본값이 같은 포트로 바뀌는지 확인합니다.
+
 ## fresh clone 검증
 
 1. 검증 대상 변경을 포함한 커밋을 새로운 폴더에 clone하고 해당 작업 브랜치를 checkout합니다. clone에 `.env`, `.venv`, `frontend/node_modules`, 로컬 DB가 없는지 확인합니다. 기존 작업 폴더의 파일을 복사해 검증을 대신하지 않습니다.
@@ -106,6 +158,16 @@ docker compose run --rm --no-deps frontend npm run lint
 5. backend 컨테이너에서 SQLAlchemy로 `SELECT 1`을 실행하고 검증용 테이블·데이터를 `/data/app.db`에 기록합니다. `docker compose down` 후 같은 프로젝트로 다시 실행해 기록을 읽을 수 있는지 확인합니다. `/health` 결과를 DB 검증으로 대체하지 않습니다.
 6. `BACKEND_PORT`와 `FRONTEND_PORT`를 다른 값으로 지정해 `docker compose config`의 포트와 기본 `VITE_API_BASE_URL`을 확인합니다. 명시적인 API URL도 반영되는지 확인합니다.
 7. 검증한 커밋, Docker·Compose·Python·Node 버전과 실행 결과를 기록합니다. 검증용 프로젝트에 대해서만 `docker compose down --volumes`로 데이터를 정리합니다. Windows·macOS에서 직접 확인하지 않았다면 해당 검증은 미수행으로 보고합니다.
+
+## 직접 검증 기록: PDF 업로드 (2026-11-01)
+
+- Windows 11, Docker Desktop(Engine 29.9.2), Compose 5.6.1, 검증 프로젝트 `issue17-check`, `BACKEND_PORT=18000`, `FRONTEND_PORT=15173`에서 확인했습니다.
+- `docker compose config --quiet` 통과. 기본 `CORS_ALLOWED_ORIGINS`가 `FRONTEND_PORT`(5173, 3000, 15173)를 따르는 것을 확인했습니다.
+- 컨테이너 pytest 127개 통과(기존 httpx 사용 중단 예정 경고 1건).
+- 새 볼륨으로 `up --build -d --wait` 후 두 서비스 healthy, 테이블 `documents`·`subjects` 생성을 확인했습니다.
+- HTTP로 과목 생성 → PDF 업로드 201(page_count 1) → 목록·원본 바이트 일치·`application/pdf`를 확인했고 `/data/uploads`에 UUID 파일 1개가 생성됐습니다. `127.0.0.1:15173` origin의 CORS 허용을 확인했습니다.
+- `down` 후 `up`, `restart backend` 후에도 목록과 원본 바이트가 유지됐습니다. 검증 후 `issue17-check` 프로젝트만 `down --volumes`로 정리했습니다.
+- fresh clone 검증과 macOS 실행은 수행하지 않았습니다.
 
 ## 직접 검증 기록 (2026-10-01)
 

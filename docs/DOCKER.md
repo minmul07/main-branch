@@ -1,6 +1,6 @@
 # Docker 개발 환경
 
-React/Vite와 FastAPI/Uvicorn을 개발 서버로 실행합니다. 운영용 배포 구성이 아니며, 현재 화면은 `App` 제목만 표시합니다. PDF 업로드와 OCR은 아직 구현되지 않았으므로 Tesseract와 업로드 저장소는 이번 구성에 포함하지 않습니다.
+React/Vite와 FastAPI/Uvicorn을 개발 서버로 실행합니다. 운영용 배포 구성이 아니며, 현재 화면은 `App` 제목만 표시합니다. PDF 업로드 원본은 backend의 `/data/uploads`에 저장합니다. OCR은 아직 구현되지 않았으므로 Tesseract는 이번 구성에 포함하지 않습니다.
 
 ## 실행과 종료
 
@@ -34,8 +34,12 @@ docker compose down
 | `FRONTEND_PORT` | `5173` | 호스트의 frontend 포트 |
 | `BACKEND_PORT` | `8000` | 호스트의 backend 포트 |
 | `VITE_API_BASE_URL` | `http://127.0.0.1:<BACKEND_PORT>` | 브라우저에서 사용할 API 주소; 비워 두면 기본값 사용 |
+| `MAX_UPLOAD_SIZE_BYTES` | `52428800` (50 MiB) | PDF 업로드 1건의 최대 바이트 수; 비워 두면 기본값 사용 |
+| `CORS_ALLOWED_ORIGINS` | `http://127.0.0.1:<FRONTEND_PORT>,http://localhost:<FRONTEND_PORT>` | backend를 브라우저에서 호출할 수 있는 origin, 쉼표로 구분; 비워 두면 기본값 사용 |
 
 Compose는 이 값을 컨테이너 환경변수로 전달합니다. 브라우저는 Docker 내부 서비스 이름인 `backend`를 해석하지 못하므로 브라우저용 URL에는 호스트 주소를 사용합니다. `VITE_` 변수는 클라이언트에 노출되므로 비밀 값을 넣지 않습니다. 환경변수를 변경한 뒤에는 `docker compose up --build`를 다시 실행해 컨테이너를 재생성합니다. 포트가 이미 사용 중이면 다른 포트로 변경합니다.
+
+`FRONTEND_PORT`를 바꾸면 기본 `CORS_ALLOWED_ORIGINS`도 같은 포트를 따라갑니다. `CORS_ALLOWED_ORIGINS`를 직접 지정하면 그 값만 허용하므로 frontend 주소를 빠뜨리지 않습니다. 업로드 저장 경로 `UPLOAD_DIR`은 Compose에서 `/data/uploads`로 고정하며 `.env`로 바꾸지 않습니다.
 
 Docker 없이 frontend를 실행할 때 사용하는 `frontend/.env.local`과 루트 `.env`는 별개입니다. Docker의 frontend 환경변수는 Compose에서 전달하며 로컬 `.env.local`은 이미지에 복사하지 않습니다.
 
@@ -54,9 +58,17 @@ backend 컨테이너의 `DATABASE_PATH`는 `/data/app.db`이며 `/data`에 Compo
 
 Docker 없이 실행할 때 `DATABASE_PATH`가 미지정 또는 빈 값이면 기존 `backend/app.db`를 사용합니다. 사용자 지정 경로를 사용하는 경우 상위 디렉터리를 미리 생성해야 합니다. 기존 로컬 DB는 Docker 볼륨으로 자동 복사하지 않습니다. 프로젝트 이름이나 실행 폴더 이름이 바뀌면 다른 볼륨을 사용할 수 있습니다.
 
+### 업로드 파일
+
+backend 컨테이너의 `UPLOAD_DIR`은 `/data/uploads`로, SQLite와 같은 `backend_data` 볼륨에 저장됩니다. 첫 업로드 때 디렉터리가 생성되며 `down`, 이미지 재빌드, `docker compose restart backend` 후에도 원본이 유지됩니다. `docker compose down --volumes`를 실행하면 DB와 함께 삭제됩니다.
+
+- 원본은 UUID 파일명으로 저장되고 원래 파일명은 DB에만 기록됩니다. 볼륨 내용은 `docker compose exec backend ls -la /data/uploads`로 확인합니다.
+- backend 소스 bind mount(`./backend`)와 별개이므로 업로드 파일이 호스트 `backend/` 폴더에 생기지 않습니다. Docker 없이 실행할 때 사용하는 `backend/uploads`는 Git과 이미지 빌드에서 제외됩니다.
+- 업로드 도중 컨테이너가 강제 종료되면 `/data/uploads`에 `.upload-*.tmp` 파일이나 DB에 없는 파일이 남을 수 있습니다. 정리 기준은 [ARCHITECTURE.md](ARCHITECTURE.md#한계와-정리-방침)를 따릅니다.
+
 ### 테이블 초기화
 
-Docker 컨테이너는 시작할 때마다 `uv run --locked python -m backend.app.init_db`를 실행한 뒤 Uvicorn을 시작합니다. 초기화 명령은 `create_all`을 사용하므로 다시 실행해도 기존 테이블과 행을 보존합니다. 이미지 빌드나 Python import 시에는 실행하지 않습니다. 초기화에 실패하면 명령이 실패 상태로 종료되어 Uvicorn은 시작되지 않으며, 원인은 backend 컨테이너 로그에서 확인할 수 있습니다.
+Docker 컨테이너는 시작할 때마다 `uv run --locked python -m backend.app.init_db`를 실행한 뒤 Uvicorn을 시작합니다. `subjects`와 `documents` 테이블이 함께 준비되며, 기존 볼륨에 `documents` 테이블이 없으면 다음 시작 때 추가됩니다. 초기화 명령은 `create_all`을 사용하므로 다시 실행해도 기존 테이블과 행을 보존합니다. 이미지 빌드나 Python import 시에는 실행하지 않습니다. 초기화에 실패하면 명령이 실패 상태로 종료되어 Uvicorn은 시작되지 않으며, 원인은 backend 컨테이너 로그에서 확인할 수 있습니다.
 
 Docker에서 초기화만 명시적으로 실행하려면 저장소 루트에서 다음 명령을 사용합니다. 이 명령은 이미지의 기본 시작 명령을 대체하므로 Uvicorn을 시작하지 않습니다.
 

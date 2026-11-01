@@ -48,6 +48,8 @@ uv run uvicorn backend.app.main:app --reload
 - 상태 확인: `GET http://127.0.0.1:8000/health` → `{"status":"ok"}`
 - API 문서: `http://127.0.0.1:8000/docs`
 - SQLite 파일: `backend/app.db` (최초 DB 연결 시 생성되며 Git에서 제외됩니다.)
+- 테이블 준비: 처음 실행하거나 모델이 추가된 뒤 `uv run python -m backend.app.init_db` (기존 데이터 유지)
+- 업로드한 PDF 원본: `backend/uploads/` (Git에서 제외됩니다.)
 
 백엔드 테스트는 `uv run pytest`로 실행합니다. 검증 기준은 [테스트 문서](docs/TESTING.md)를 참고합니다.
 

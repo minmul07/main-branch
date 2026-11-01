@@ -13,3 +13,7 @@ def create_subject(session: Session, name: str) -> Subject:
 
 def list_subjects(session: Session) -> list[Subject]:
     return list(session.scalars(select(Subject).order_by(Subject.id)))
+
+
+def get_subject(session: Session, subject_id: int) -> Subject | None:
+    return session.get(Subject, subject_id)

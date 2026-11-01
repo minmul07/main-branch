@@ -9,6 +9,7 @@
 **/*.tsbuildinfo
 **/*.db
 **/*.sqlite3
+backend/uploads
 **/.env
 **/.env.*
 !**/.env.example

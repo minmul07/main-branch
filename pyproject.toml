@@ -4,6 +4,8 @@ version = "0.1.0"
 requires-python = ">=3.14,<3.15"
 dependencies = [
     "fastapi>=0.141.1",
+    "pypdf>=6.21.4",
+    "python-multipart>=0.0.33",
     "sqlalchemy>=2.1.1",
     "uvicorn[standard]>=0.54.0",
 ]
