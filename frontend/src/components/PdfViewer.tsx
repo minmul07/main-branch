@@ -3,6 +3,7 @@ import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { API_BASE_URL } from '../config'
+import PdfScrollbars from './PdfScrollbars'
 
 GlobalWorkerOptions.workerSrc = workerUrl
 
@@ -59,6 +60,7 @@ export default function PdfViewer({ documentId }: { documentId: number }) {
   const [error, setError] = useState(false)
   const [attempt, setAttempt] = useState(0)
   const [scrollArea, setScrollArea] = useState<HTMLDivElement | null>(null)
+  const [scrollContent, setScrollContent] = useState<HTMLDivElement | null>(null)
   const [pageInput, setPageInput] = useState('1')
   const [manualScale, setManualScale] = useState(1)
   const [editingZoom, setEditingZoom] = useState(false)
@@ -223,9 +225,14 @@ export default function PdfViewer({ documentId }: { documentId: number }) {
         <button type="button" aria-label="확대" title="확대" disabled={scale >= MAX_SCALE} onClick={() => changeZoom(1.2)}>+</button>
         <button type="button" aria-label={fit === 'width' ? '높이 맞춤' : '너비 맞춤'} title={fit === 'width' ? '높이 맞춤' : '너비 맞춤'} onClick={() => setFit(fit === 'width' ? 'height' : 'width')}><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="4" width="12" height="16" rx="1" />{fit === 'width' ? <path d="M12 8v8m-2-6 2-2 2 2m-4 4 2 2 2-2" /> : <path d="M8 12h8m-6-2-2 2 2 2m4-4 2 2-2 2" />}</svg></button>
       </div>}
+      <div className="pdf-scroll-wrapper">
       <div className={`pdf-page-area${fit === 'width' ? ' pdf-fit-width' : ''}`} ref={setScrollArea} onScroll={updateCurrentPage} tabIndex={0} role="region" aria-label="PDF 페이지">
+        <div className="pdf-pages" ref={setScrollContent}>
         {error ? <div role="alert">PDF를 불러오지 못했습니다. <button type="button" onClick={() => { setError(false); setAttempt((n) => n + 1) }}>다시 시도</button></div>
           : pdf ? Array.from({ length: pdf.numPages }, (_, index) => <PdfPage key={index + 1} pdf={pdf} pageNumber={index + 1} root={scrollArea} scale={scale} defaultSize={firstPageSize} />) : <p role="status">PDF를 불러오는 중...</p>}
+        </div>
+      </div>
+      <PdfScrollbars area={scrollArea} content={scrollContent} />
       </div>
     </div>
   )
