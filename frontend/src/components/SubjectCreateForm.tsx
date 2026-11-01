@@ -1,21 +1,24 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { FormEvent, MouseEvent } from 'react'
 import { useDialogFocus } from '../hooks/useDialogFocus'
 import type { DialogReturnFocusRef } from '../hooks/useDialogFocus'
 
 type SubjectCreateFormProps = {
   onClose: () => void
-  onCreateSubject: (name: string) => void
+  onCreateSubject: (name: string) => Promise<void>
   returnFocusRef: DialogReturnFocusRef
 }
 
 function SubjectCreateForm({ onClose, onCreateSubject, returnFocusRef }: SubjectCreateFormProps) {
   const [name, setName] = useState('')
   const [error, setError] = useState('')
+  const [pending, setPending] = useState(false)
+  const pendingRef = useRef(false)
   const dialogRef = useDialogFocus(returnFocusRef)
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (pendingRef.current) return
     const trimmed = name.trim()
 
     if (trimmed === '') {
@@ -27,11 +30,21 @@ function SubjectCreateForm({ onClose, onCreateSubject, returnFocusRef }: Subject
       return
     }
 
-    onCreateSubject(trimmed)
+    pendingRef.current = true
+    setPending(true)
+    setError('')
+    try {
+      await onCreateSubject(trimmed)
+    } catch {
+      setError('과목을 생성하지 못했습니다. 다시 시도해주세요.')
+    } finally {
+      pendingRef.current = false
+      setPending(false)
+    }
   }
 
   function handleBackdropClick(event: MouseEvent<HTMLDivElement>) {
-    if (event.target === event.currentTarget) {
+    if (!pending && event.target === event.currentTarget) {
       onClose()
     }
   }
@@ -53,6 +66,7 @@ function SubjectCreateForm({ onClose, onCreateSubject, returnFocusRef }: Subject
             type="button"
             className="subject-modal-close"
             aria-label="팝업 닫기"
+            disabled={pending}
             onClick={onClose}
           >
             ×
@@ -63,6 +77,7 @@ function SubjectCreateForm({ onClose, onCreateSubject, returnFocusRef }: Subject
           <label htmlFor="subject-name">과목 이름</label>
           <div className="subject-create-fields">
             <input
+              readOnly={pending}
               id="subject-name"
               autoFocus
               data-dialog-autofocus
@@ -75,10 +90,10 @@ function SubjectCreateForm({ onClose, onCreateSubject, returnFocusRef }: Subject
           </div>
           {error && <p id="subject-error" role="alert">{error}</p>}
           <div className="subject-create-actions">
-            <button type="button" className="subject-create-cancel" onClick={onClose}>
+            <button type="button" className="subject-create-cancel" disabled={pending} onClick={onClose}>
               취소
             </button>
-            <button type="submit">과목 추가</button>
+            <button type="submit" disabled={pending}>{pending ? '생성 중...' : '과목 추가'}</button>
           </div>
         </form>
       </section>
