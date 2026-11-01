@@ -178,9 +178,14 @@ export default function PdfViewer({ documentId }: { documentId: number }) {
 
   function updateCurrentPage() {
     if (!scrollArea) return
-    const top = scrollArea.getBoundingClientRect().top
+    const viewport = scrollArea.getBoundingClientRect()
+    const top = viewport.top
     const pages = Array.from(scrollArea.querySelectorAll<HTMLElement>('[data-page]'))
-    const current = pages.reduce<HTMLElement | null>((closest, page) =>
+    const visiblePages = pages.filter((page) => {
+      const bounds = page.getBoundingClientRect()
+      return bounds.bottom > top && bounds.top < viewport.bottom
+    })
+    const current = visiblePages.reduce<HTMLElement | null>((closest, page) =>
       Math.abs(page.getBoundingClientRect().top - top) < Math.abs((closest?.getBoundingClientRect().top ?? Infinity) - top) ? page : closest, null)
     if (current) {
       const number = Number(current.dataset.page)
