@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { listDocuments } from '../documentsApi'
 import UploadDialog from './UploadDialog'
 import type { MockDocument } from '../types'
 import type { Subject } from '../types'
+
+const PdfViewer = lazy(() => import('./PdfViewer'))
 
 type SubjectDocumentsPageProps = {
   subject: Subject
@@ -77,10 +79,14 @@ function SubjectDocumentsPage({
           </ul>
         </aside>
 
-        <section className="document-details" aria-labelledby="document-details-title" aria-live="polite">
-          <h2 id="document-details-title">자료 정보</h2>
+        <section className="document-details" aria-labelledby="document-details-title">
           {selectedDocument ? (
-            <dl className="document-metadata">
+            <>
+            <div className="document-titlebar">
+              <h2 id="document-details-title" title={selectedDocument.filename}>{selectedDocument.filename}</h2>
+              <div className="document-info">
+                <button type="button" aria-label="자료 정보" aria-describedby="document-metadata">ⓘ</button>
+            <dl className="document-metadata" id="document-metadata">
               <div>
                 <dt>파일명</dt>
                 <dd>{selectedDocument.filename}</dd>
@@ -102,8 +108,12 @@ function SubjectDocumentsPage({
                 <dd>{formatUploadDate(selectedDocument.uploaded_at)}</dd>
               </div>
             </dl>
+              </div>
+            </div>
+            <Suspense fallback={<p role="status">PDF 뷰어를 불러오는 중...</p>}><PdfViewer key={selectedDocument.id} documentId={selectedDocument.id} /></Suspense>
+            </>
           ) : (
-            <p className="document-placeholder">PDF를 선택하면 파일 정보가 여기에 표시됩니다.</p>
+            <><h2 id="document-details-title" className="empty-viewer-title">PDF 뷰어</h2><p className="document-placeholder">PDF를 선택하면 원문이 여기에 표시됩니다.</p></>
           )}
         </section>
       </div>

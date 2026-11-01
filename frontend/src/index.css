@@ -44,13 +44,26 @@ button:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visibl
 .subject-page-back { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 0 14px; border: 0; border-radius: 12px; background: #f0eeee; white-space: nowrap; }
 .subject-page-back:hover { background: #e5e3e3; }
 .subject-page-layout { display: grid; grid-template-columns: 320px minmax(0, 1fr); align-items: start; gap: 24px; }
-.document-details { min-width: 0; min-height: 240px; padding: 24px; border: 1px solid #dedcdc; border-radius: 24px; background: #fff; }
+.document-details { display: flex; flex-direction: column; min-width: 0; height: max(480px, calc(100vh - 144px)); border: 1px solid #dedcdc; border-radius: 24px; background: #fff; }
 .document-details h2, .document-sidebar h2 { margin: 0 0 20px; font-size: 18px; font-weight: 600; }
-.document-placeholder { display: grid; min-height: 160px; place-items: center; margin: 0; color: #74777c; text-align: center; }
-.document-metadata { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 0; }
-.document-metadata div { min-width: 0; padding: 14px 16px; border-radius: 14px; background: #f7f6f6; }
-.document-metadata dt { margin-bottom: 6px; color: #74777c; font-size: 13px; }
-.document-metadata dd { overflow-wrap: anywhere; margin: 0; font-size: 15px; font-weight: 600; }
+.document-placeholder { display: grid; flex: 1; place-items: center; margin: 0; padding: 20px; color: #74777c; text-align: center; }
+.document-details .empty-viewer-title { margin: 0; padding: 20px 24px; }
+.document-titlebar { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 16px 24px; }
+.document-details .document-titlebar h2 { overflow: hidden; margin: 0; text-overflow: ellipsis; white-space: nowrap; }
+.document-info { position: relative; flex: none; margin-left: auto; }
+.document-info > button { padding: 2px 4px; border: 0; background: transparent; color: #62666b; font-size: 20px; }
+.document-metadata { position: absolute; z-index: 3; top: 100%; right: 0; display: none; width: min(300px, 70vw); padding: 12px 16px; margin: 0; border: 1px solid #dedcdc; border-radius: 12px; background: white; box-shadow: 0 8px 24px #0002; }
+.document-info:hover .document-metadata, .document-info:focus-within .document-metadata { display: grid; gap: 8px; }
+.document-metadata div { display: grid; grid-template-columns: 68px minmax(0, 1fr); gap: 8px; font-size: 13px; }
+.document-metadata dt { color: #74777c; }
+.document-metadata dd { overflow-wrap: anywhere; margin: 0; }
+.pdf-viewer { display: flex; flex: 1; flex-direction: column; min-height: 0; overflow: hidden; border-radius: 0 0 23px 23px; background: #eae8e8; }
+.pdf-toolbar { display: flex; align-items: center; justify-content: center; gap: 16px; padding: 8px; background: #f7f6f6; }
+.pdf-toolbar button, .pdf-page-area button { padding: 6px 12px; border: 1px solid #dedcdc; border-radius: 8px; background: white; }
+.pdf-toolbar button:disabled { opacity: .45; }
+.pdf-page-area { position: relative; flex: 1; min-height: 0; overflow-y: scroll; overflow-x: hidden; padding: 20px; text-align: center; scrollbar-color: #96999d #eae8e8; scrollbar-width: auto; }
+.pdf-page { width: min(100%, 900px); margin: 0 auto 20px; background: white; box-shadow: 0 2px 10px #0002; }
+.pdf-page canvas { display: block; width: 100%; height: auto; }
 .document-sidebar { min-width: 0; max-height: calc(100vh - 112px); overflow-y: auto; padding: 20px; border: 1px solid #dedcdc; border-radius: 24px; background: #f7f6f6; }
 .document-sidebar h2 { margin-bottom: 14px; }
 .document-list { display: flex; flex-direction: column; gap: 8px; width: 100%; padding: 0; margin: 0; list-style: none; }
@@ -96,8 +109,7 @@ button:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visibl
   .subject-page-header { align-items: flex-start; flex-direction: column; gap: 16px; }
   .subject-page-header h1, .subject-not-found h1 { max-width: 100%; font-size: 22px; }
   .subject-page-layout { gap: 16px; }
-  .document-details { min-height: 200px; padding: 20px; }
-  .document-metadata { grid-template-columns: minmax(0, 1fr); }
+  .document-details { height: 70vh; min-height: 400px; }
   .document-sidebar { max-height: none; padding: 16px; }
   .subject-modal-backdrop { padding: 16px; }
   .subject-modal { max-height: calc(100vh - 32px); padding: 20px; }
