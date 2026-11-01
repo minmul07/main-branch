@@ -140,6 +140,15 @@ docker compose run --rm --no-deps frontend npm run lint
 
 - 검증 후에는 격리된 프로젝트의 리소스만 `docker compose down --volumes`로 제거합니다.
 
+### PDF 업로드 영속성
+
+- 고유한 `COMPOSE_PROJECT_NAME`으로 새 볼륨을 사용합니다. 로컬 개발 서버와 포트가 겹치면 `BACKEND_PORT`·`FRONTEND_PORT`를 바꿉니다.
+- `docker compose up --build -d --wait` 후 위 테이블 확인 명령에서 `documents`도 목록에 있어야 합니다.
+- `POST /subjects` → `POST /documents`(multipart)로 실제 PDF를 올려 201을 확인하고, `docker compose exec backend ls -la /data/uploads`에 UUID 이름의 파일이 생겼는지 확인합니다.
+- `GET /documents?subject_id=…`, `GET /documents/{id}`, `GET /documents/{id}/file`(바이트 일치, `application/pdf`)을 확인합니다. 설정된 frontend origin의 CORS preflight가 허용되는지도 확인합니다.
+- `docker compose down` 후 같은 프로젝트로 다시 `up`, 이어서 `docker compose restart backend` 후에도 목록·메타데이터·원본이 유지되어야 합니다.
+- `FRONTEND_PORT`를 바꿔 `docker compose config`의 `CORS_ALLOWED_ORIGINS` 기본값이 같은 포트로 바뀌는지 확인합니다.
+
 ## fresh clone 검증
 
 1. 검증 대상 변경을 포함한 커밋을 새로운 폴더에 clone하고 해당 작업 브랜치를 checkout합니다. clone에 `.env`, `.venv`, `frontend/node_modules`, 로컬 DB가 없는지 확인합니다. 기존 작업 폴더의 파일을 복사해 검증을 대신하지 않습니다.
@@ -149,6 +158,16 @@ docker compose run --rm --no-deps frontend npm run lint
 5. backend 컨테이너에서 SQLAlchemy로 `SELECT 1`을 실행하고 검증용 테이블·데이터를 `/data/app.db`에 기록합니다. `docker compose down` 후 같은 프로젝트로 다시 실행해 기록을 읽을 수 있는지 확인합니다. `/health` 결과를 DB 검증으로 대체하지 않습니다.
 6. `BACKEND_PORT`와 `FRONTEND_PORT`를 다른 값으로 지정해 `docker compose config`의 포트와 기본 `VITE_API_BASE_URL`을 확인합니다. 명시적인 API URL도 반영되는지 확인합니다.
 7. 검증한 커밋, Docker·Compose·Python·Node 버전과 실행 결과를 기록합니다. 검증용 프로젝트에 대해서만 `docker compose down --volumes`로 데이터를 정리합니다. Windows·macOS에서 직접 확인하지 않았다면 해당 검증은 미수행으로 보고합니다.
+
+## 직접 검증 기록: PDF 업로드 (2026-11-01)
+
+- Windows 11, Docker Desktop(Engine 29.9.2), Compose 5.6.1, 검증 프로젝트 `issue17-check`, `BACKEND_PORT=18000`, `FRONTEND_PORT=15173`에서 확인했습니다.
+- `docker compose config --quiet` 통과. 기본 `CORS_ALLOWED_ORIGINS`가 `FRONTEND_PORT`(5173, 3000, 15173)를 따르는 것을 확인했습니다.
+- 컨테이너 pytest 127개 통과(기존 httpx 사용 중단 예정 경고 1건).
+- 새 볼륨으로 `up --build -d --wait` 후 두 서비스 healthy, 테이블 `documents`·`subjects` 생성을 확인했습니다.
+- HTTP로 과목 생성 → PDF 업로드 201(page_count 1) → 목록·원본 바이트 일치·`application/pdf`를 확인했고 `/data/uploads`에 UUID 파일 1개가 생성됐습니다. `127.0.0.1:15173` origin의 CORS 허용을 확인했습니다.
+- `down` 후 `up`, `restart backend` 후에도 목록과 원본 바이트가 유지됐습니다. 검증 후 `issue17-check` 프로젝트만 `down --volumes`로 정리했습니다.
+- fresh clone 검증과 macOS 실행은 수행하지 않았습니다.
 
 ## 직접 검증 기록 (2026-10-01)
 

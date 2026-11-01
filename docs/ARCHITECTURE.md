@@ -87,7 +87,7 @@ Subject
 | `MAX_UPLOAD_SIZE_BYTES` | `52428800` (50 MiB) | 업로드 1건의 최대 바이트 수. 양의 정수가 아니면 시작 시 오류. |
 | `CORS_ALLOWED_ORIGINS` | `http://127.0.0.1:5173,http://localhost:5173` | 쉼표로 구분한 허용 origin. frontend 포트를 바꾸면 함께 변경한다. |
 
-설정값을 사용하는 저장 서비스·CORS 미들웨어·Docker 경로(`/data/uploads`)는 #17의 후속 단계에서 연결한다.
+저장 서비스와 `/documents` API가 `UPLOAD_DIR`·`MAX_UPLOAD_SIZE_BYTES`를, `main.py`의 CORS 미들웨어가 `CORS_ALLOWED_ORIGINS`를 사용한다. Docker에서는 `UPLOAD_DIR=/data/uploads`로 `backend_data` 볼륨에 저장한다([DOCKER.md](DOCKER.md#업로드-파일)).
 
 ## 구현된 Document 데이터 계층
 

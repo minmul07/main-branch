@@ -9,7 +9,7 @@ from pytest import MonkeyPatch, fixture, mark
 from sqlalchemy import Engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
-from backend.app import database
+from backend.app import config, database
 from backend.app.database import get_db
 from backend.app.init_db import init_db
 from backend.app.main import app
@@ -373,10 +373,12 @@ def test_documents_persist_after_reinit_and_reconnect(
 
 
 def test_cors_allows_configured_frontend_origin(client: TestClient) -> None:
+    # 실행 환경의 CORS_ALLOWED_ORIGINS(예: Compose의 FRONTEND_PORT)에 따라 달라지므로 설정값을 쓴다.
+    origin = config.CORS_ALLOWED_ORIGINS[0]
     allowed = client.options(
         "/subjects",
         headers={
-            "Origin": "http://127.0.0.1:5173",
+            "Origin": origin,
             "Access-Control-Request-Method": "POST",
             "Access-Control-Request-Headers": "content-type",
         },
@@ -384,5 +386,5 @@ def test_cors_allows_configured_frontend_origin(client: TestClient) -> None:
     blocked = client.get("/subjects", headers={"Origin": "http://evil.example"})
 
     assert allowed.status_code == 200
-    assert allowed.headers["access-control-allow-origin"] == "http://127.0.0.1:5173"
+    assert allowed.headers["access-control-allow-origin"] == origin
     assert "access-control-allow-origin" not in blocked.headers
