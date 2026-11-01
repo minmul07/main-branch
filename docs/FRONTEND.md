@@ -60,3 +60,5 @@ npm run lint
 Vitest와 jsdom, React Testing Library로 테스트합니다. 검증 기준은 [테스트 문서](TESTING.md)를 참고합니다.
 - 자료 페이지는 `GET /documents?subject_id=`로 실제 목록을 조회하며 로딩, 빈 목록, 오류 재시도를 제공합니다.
 - 자료 추가 팝업에서 PDF를 여러 개 선택하거나 드롭하고 파일별 양의 정수 주차를 입력합니다. 파일별 POST 결과를 표시하며 실패 항목만 재시도합니다. 모든 파일이 업로드되면 업로드 버튼 대신 파란 닫기 버튼을 표시합니다. 네트워크 실패 후 재시도는 중복 등록될 수 있습니다.
+
+PDF.js 런타임 자산은 설치된 pdfjs-dist의 cmaps, wasm, standard_fonts, iccs에서 가져옵니다. Vite는 개발 서버에서 /pdfjs/로 제공하고 빌드 결과에도 같은 경로로 포함합니다. 뷰어는 BASE_URL을 반영한 자산 URL과 압축 CMap 옵션을 설정하여 CJK 문자와 JPEG2000 디코더 등을 로컬에서 로드합니다.

@@ -84,7 +84,14 @@ export default function PdfViewer({ documentId }: { documentId: number }) {
 
   useEffect(() => {
     let cancelled = false
-    const task = getDocument({ url: `${API_BASE_URL}/documents/${documentId}/file` })
+    const task = getDocument({
+      url: `${API_BASE_URL}/documents/${documentId}/file`,
+      cMapUrl: `${import.meta.env.BASE_URL}pdfjs/cmaps/`,
+      cMapPacked: true,
+      wasmUrl: `${import.meta.env.BASE_URL}pdfjs/wasm/`,
+      standardFontDataUrl: `${import.meta.env.BASE_URL}pdfjs/standard_fonts/`,
+      iccUrl: `${import.meta.env.BASE_URL}pdfjs/iccs/`,
+    })
     task.promise.then((document) => { if (!cancelled) setPdf(document) })
       .catch(() => { if (!cancelled) setError(true) })
     return () => { cancelled = true; void task.destroy() }

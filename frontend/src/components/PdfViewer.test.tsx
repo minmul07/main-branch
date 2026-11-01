@@ -18,7 +18,11 @@ beforeEach(() => {
 
 test('loads the selected PDF, navigates pages, and releases it', async () => {
   const { unmount } = render(<PdfViewer documentId={7} />)
-  expect(getDocument).toHaveBeenCalledWith({ url: 'http://127.0.0.1:8000/documents/7/file' })
+  expect(getDocument).toHaveBeenCalledWith({
+    url: 'http://127.0.0.1:8000/documents/7/file',
+    cMapUrl: '/pdfjs/cmaps/', cMapPacked: true, wasmUrl: '/pdfjs/wasm/',
+    standardFontDataUrl: '/pdfjs/standard_fonts/', iccUrl: '/pdfjs/iccs/',
+  })
   expect(await screen.findByText('/ 2')).toBeTruthy()
   expect((screen.getByRole('textbox', { name: '페이지 번호' }) as HTMLInputElement).value).toBe('1')
   expect((screen.getByRole('button', { name: '이전' }) as HTMLButtonElement).disabled).toBe(true)
