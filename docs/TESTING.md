@@ -73,6 +73,7 @@ uv run pytest
 - 임시 SQLite(`conftest.py`의 엔진)와 `tmp_path` 업로드 디렉터리를 `get_db`·`get_upload_settings` override로 주입하고, 테스트 후 override를 정리합니다.
 - `POST /subjects` → `POST /documents` → 과목별 목록 → 단건 조회 → 원본 조회 흐름에서 201, 메타데이터 7개 필드, `Z`로 끝나는 시각, 실제 크기·페이지 수, 원본 바이트 일치와 `Content-Type`·`Content-Length`·`Content-Disposition`(한글 `filename*`, ASCII `filename`)을 확인합니다.
 - Range 요청 `bytes=0-9`가 206과 `Content-Range`, 해당 바이트를 반환해야 합니다.
+- 허용된 frontend origin에서 PDF 전체·Range 응답의 `Accept-Ranges`, `Content-Range`, `Content-Disposition` 노출과 Range preflight를 확인합니다. 허용되지 않은 origin에는 CORS 접근을 허용하지 않아야 합니다.
 - 과목별 분리, ID 오름차순, 빈 목록 `[]`, 없는 과목·문서 404를 확인합니다.
 - `subject_id`·`week_number`·Document ID의 누락, 빈 값, 0, 음수, 문자, `3.0`·`3.5` 같은 소수 형태가 422를 반환하고 저장되지 않아야 합니다.
 - 빈 파일, PDF가 아닌 파일, 암호화, 0페이지, 잘린 PDF는 422이고 DB 행·파일이 남지 않아야 합니다. 스캔 PDF는 201입니다.
