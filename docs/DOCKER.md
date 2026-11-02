@@ -48,6 +48,7 @@ Docker 없이 frontend를 실행할 때 사용하는 `frontend/.env.local`과 �
 - backend는 `backend/`를 읽기 전용 bind mount하고 Uvicorn `--reload`로 변경을 반영합니다.
 - frontend는 `src/`, `index.html`, `vite.config.ts`를 읽기 전용 bind mount합니다. 소스는 Vite HMR로 반영되며 Vite 설정 변경 시 개발 서버가 재시작됩니다.
 - 컨테이너에서 생성한 `.venv`와 `node_modules`는 호스트와 공유하지 않습니다. Python 3.14와 uv 0.11.1, Node 22 최신 패치 계열 이미지를 사용하며 `uv.lock`과 `package-lock.json`으로 의존성을 설치합니다.
+- frontend 이미지의 `npm ci`는 PDF.js 배포 패키지 `pdfjs-dist`도 설치합니다. 의존성 변경 후 이미지를 다시 빌드해야 적용됩니다.
 - 의존성, 잠금 파일, TypeScript 설정, Dockerfile을 변경하면 `docker compose up --build`로 다시 빌드합니다. 이후 frontend에 `public/` 등 새로운 소스 디렉터리를 추가하면 mount 설정도 함께 추가해야 합니다.
 
 Windows/WSL2의 파일 변경 감지를 위해 Compose에서는 Vite polling과 `WATCHFILES_FORCE_POLLING=true`를 사용합니다. Vite polling 간격은 1초입니다. Docker 없이 실행할 때 Vite polling은 기본적으로 비활성화됩니다.

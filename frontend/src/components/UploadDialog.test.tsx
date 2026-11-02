@@ -1,0 +1,25 @@
+﻿import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { expect, test, vi } from 'vitest'
+import UploadDialog from './UploadDialog'
+test('uploads separately and retries only failures', async () => {
+  const fetchMock = vi.fn().mockResolvedValueOnce({ ok: true }).mockResolvedValueOnce({ ok: false, status: 422 }).mockResolvedValueOnce({ ok: true })
+  vi.stubGlobal('fetch', fetchMock)
+  const done = vi.fn()
+  const { container } = render(<UploadDialog subjectId={7} returnFocusRef={{ current: null }} onClose={() => {}} onUploaded={done} />)
+  fireEvent.change(container.querySelector('input[type=file]')!, { target: { files: [new File(['a'], 'a.pdf'), new File(['b'], 'b.pdf')] } })
+  const weeks = screen.getAllByRole('textbox')
+  fireEvent.change(weeks[0], { target: { value: '2' } }); fireEvent.change(weeks[1], { target: { value: '3' } })
+  fireEvent.submit(container.querySelector('form')!)
+  await waitFor(() => expect(done).toHaveBeenCalledTimes(1))
+  expect((fetchMock.mock.calls[0][1].body as FormData).get('subject_id')).toBe('7')
+  await waitFor(() => expect((container.querySelector('button[type=submit]') as HTMLButtonElement).disabled).toBe(false))
+  fireEvent.submit(container.querySelector('form')!)
+  await waitFor(() => expect(done).toHaveBeenCalledTimes(2))
+  expect(fetchMock).toHaveBeenCalledTimes(3)
+  expect((fetchMock.mock.calls[2][1].body as FormData).get('week_number')).toBe('3')
+  await waitFor(() => expect(screen.queryByRole('button', { name: '업로드' })).toBeNull())
+  const close = screen.getByRole('button', { name: '닫기' })
+  expect(close.classList.contains('subject-create-cancel')).toBe(false)
+  fireEvent.change(container.querySelector('input[type=file]')!, { target: { files: [new File(['c'], 'c.pdf')] } })
+  expect(screen.getByRole('button', { name: '업로드' })).toBeTruthy()
+})

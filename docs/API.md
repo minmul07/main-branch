@@ -97,7 +97,7 @@ P0 MVP에서 frontend와 backend가 같은 경로와 데이터 의미를 사용�
 
 ### CORS
 
-브라우저 frontend가 다른 origin에서 호출할 수 있도록 `CORS_ALLOWED_ORIGINS`(기본 `http://127.0.0.1:5173,http://localhost:5173`)만 허용한다. 메서드는 `GET`·`POST`, 요청 헤더는 `Content-Type`을 허용하고 `Content-Disposition` 응답 헤더를 노출한다. frontend 포트를 바꾸면 이 값을 함께 바꾼다.
+브라우저 frontend가 다른 origin에서 호출할 수 있도록 `CORS_ALLOWED_ORIGINS`(기본 `http://127.0.0.1:5173,http://localhost:5173`)만 허용한다. 메서드는 `GET`·`POST`, 요청 헤더는 `Content-Type`·`Range`를 허용하고 `Content-Disposition`·`Accept-Ranges`·`Content-Range` 응답 헤더를 노출한다. PDF.js는 `Accept-Ranges: bytes`를 확인해 지원되는 파일의 부분 요청을 사용한다. frontend 포트를 바꾸면 이 값을 함께 바꾼다.
 
 ## MVP endpoint
 

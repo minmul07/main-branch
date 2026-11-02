@@ -388,3 +388,32 @@ def test_cors_allows_configured_frontend_origin(client: TestClient) -> None:
     assert allowed.status_code == 200
     assert allowed.headers["access-control-allow-origin"] == origin
     assert "access-control-allow-origin" not in blocked.headers
+
+
+def test_pdf_range_headers_are_exposed_to_configured_origin(client: TestClient) -> None:
+    origin = config.CORS_ALLOWED_ORIGINS[0]
+    subject_id = create_subject(client)
+    data = text_pdf()
+    document_id = post_document(client, subject_id, data=data).json()["id"]
+    path = f"/documents/{document_id}/file"
+
+    preflight = client.options(path, headers={
+        "Origin": origin,
+        "Access-Control-Request-Method": "GET",
+        "Access-Control-Request-Headers": "range",
+    })
+    full = client.get(path, headers={"Origin": origin})
+    partial = client.get(path, headers={"Origin": origin, "Range": "bytes=0-9"})
+    blocked = client.get(path, headers={"Origin": "http://evil.example"})
+
+    assert preflight.status_code == 200
+    assert "range" in preflight.headers["access-control-allow-headers"].lower()
+    for response in (full, partial):
+        assert response.headers["access-control-allow-origin"] == origin
+        exposed = {header.strip().lower() for header in response.headers["access-control-expose-headers"].split(",")}
+        assert {"content-disposition", "accept-ranges", "content-range"} <= exposed
+    assert full.headers["accept-ranges"] == "bytes"
+    assert partial.status_code == 206
+    assert partial.headers["content-range"] == f"bytes 0-9/{len(data)}"
+    assert partial.content == data[:10]
+    assert "access-control-allow-origin" not in blocked.headers

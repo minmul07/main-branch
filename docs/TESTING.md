@@ -73,6 +73,7 @@ uv run pytest
 - 임시 SQLite(`conftest.py`의 엔진)와 `tmp_path` 업로드 디렉터리를 `get_db`·`get_upload_settings` override로 주입하고, 테스트 후 override를 정리합니다.
 - `POST /subjects` → `POST /documents` → 과목별 목록 → 단건 조회 → 원본 조회 흐름에서 201, 메타데이터 7개 필드, `Z`로 끝나는 시각, 실제 크기·페이지 수, 원본 바이트 일치와 `Content-Type`·`Content-Length`·`Content-Disposition`(한글 `filename*`, ASCII `filename`)을 확인합니다.
 - Range 요청 `bytes=0-9`가 206과 `Content-Range`, 해당 바이트를 반환해야 합니다.
+- 허용된 frontend origin에서 PDF 전체·Range 응답의 `Accept-Ranges`, `Content-Range`, `Content-Disposition` 노출과 Range preflight를 확인합니다. 허용되지 않은 origin에는 CORS 접근을 허용하지 않아야 합니다.
 - 과목별 분리, ID 오름차순, 빈 목록 `[]`, 없는 과목·문서 404를 확인합니다.
 - `subject_id`·`week_number`·Document ID의 누락, 빈 값, 0, 음수, 문자, `3.0`·`3.5` 같은 소수 형태가 422를 반환하고 저장되지 않아야 합니다.
 - 빈 파일, PDF가 아닌 파일, 암호화, 0페이지, 잘린 PDF는 422이고 DB 행·파일이 남지 않아야 합니다. 스캔 PDF는 201입니다.
@@ -92,6 +93,12 @@ uv run pytest
 - 생성한 과목을 API와 별도의 세션으로 DB에서 조회할 수 있어야 합니다.
 
 # 프론트엔드 테스트
+
+- PDF 가로·세로 스크롤바의 위치 갱신과 마지막 스크롤 후 1초 뒤 자동 숨김을 확인합니다.
+- 자료 목록을 접고 펼칠 때 버튼 상태, 키보드 초점과 목록 복원을 확인합니다.
+- 과목 페이지 진입·복귀에 따라 화면 높이 전용 레이아웃이 적용되는지 확인합니다. 실제 화면에서는 긴 자료 목록이 페이지 전체가 아닌 목록 안에서 스크롤되는지 확인합니다.
+- PDF.js를 모의하여 선택한 파일 URL, 페이지 입력과 이동 경계, 스크롤 시 현재 페이지 갱신, 확대 배율 입력과 검증, 확대·축소와 맞춤, Ctrl+휠·터치 핀치, 로딩 오류 재시도와 문서 해제를 확인합니다. 실제 PDF 렌더링과 기기별 제스처는 브라우저에서 별도로 확인합니다.
+- 페이지 렌더링 실패 시 한 번 자동 재시도하고, 반복 실패 시 해당 페이지에서 수동 재시도할 수 있는지 확인합니다.
 
 - API 응답을 모의하여 목록 로딩·오류·재시도·빈 목록, 직접 URL 접근, 생성 실패와 입력 유지, 중복 제출 방지 및 서버 ID 이동을 확인합니다.
 - 과목 카드 메뉴가 하나씩 열리고 바깥 클릭으로 닫히며, 삭제 버튼을 눌러도 과목이나 API 요청이 변경되지 않는지 확인합니다.
@@ -179,3 +186,4 @@ docker compose run --rm --no-deps frontend npm run lint
 - frontend 제목 수정·복원이 페이지 새로고침 없이 HMR로 반영됐고, backend 임시 endpoint 추가·제거가 자동 재시작으로 반영됐습니다. 검증 후 임시 소스 변경은 모두 복원했습니다.
 - `/data/app.db`에서 SQLAlchemy `SELECT 1`과 기록·커밋이 성공했습니다. `down` 후 `up --build --detach --wait`로 컨테이너를 재생성한 뒤 같은 기록과 두 서비스 healthy 상태를 확인했습니다.
 - 기본값, 포트 변경, 명시적인 API URL, 빈 환경변수 처리를 `docker compose config`로 확인했습니다. Windows·macOS 직접 실행은 미검증입니다.
+- 자료 업로드 변경 시 다중 파일 선택·드롭, 주차 검증, 파일별 성공·실패와 재시도, 실제 목록 갱신을 확인한다. 실제 브라우저와 서버에서 업로드 및 새로고침 후 목록도 확인한다.
