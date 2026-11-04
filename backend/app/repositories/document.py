@@ -31,6 +31,11 @@ def get_document(session: Session, document_id: int) -> Document | None:
     return session.get(Document, document_id)
 
 
+def delete_document(session: Session, document: Document) -> None:
+    session.delete(document)
+    session.flush()
+
+
 def list_documents_by_subject(session: Session, subject_id: int) -> list[Document]:
     return list(
         session.scalars(

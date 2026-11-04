@@ -17,3 +17,8 @@ def list_subjects(session: Session) -> list[Subject]:
 
 def get_subject(session: Session, subject_id: int) -> Subject | None:
     return session.get(Subject, subject_id)
+
+
+def delete_subject(session: Session, subject: Subject) -> None:
+    session.delete(subject)
+    session.flush()

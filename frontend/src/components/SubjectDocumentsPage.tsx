@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { listDocuments } from '../documentsApi'
 import UploadDialog from './UploadDialog'
+import DeleteDialog from './DeleteDialog'
 import type { MockDocument } from '../types'
 import type { Subject } from '../types'
 
@@ -10,7 +11,7 @@ type SubjectDocumentsPageProps = {
   subject: Subject
   selectedDocumentId: number | null
   onBack: () => void
-  onSelectDocument: (documentId: number) => void
+  onSelectDocument: (documentId: number | null) => void
 }
 
 function SubjectDocumentsPage({
@@ -22,6 +23,19 @@ function SubjectDocumentsPage({
   const [documents, setDocuments] = useState<MockDocument[]>([])
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [attempt, setAttempt] = useState(0)
+  const [deleting, setDeleting] = useState<MockDocument | null>(null)
+  const deleteFocus = useRef<HTMLElement | null>(null)
+  const alive = useRef(true)
+  const listVersion = useRef(0)
+  const selection = useRef(selectedDocumentId)
+  const selectDocument = useRef(onSelectDocument)
+  useLayoutEffect(() => { selection.current = selectedDocumentId; selectDocument.current = onSelectDocument }, [selectedDocumentId, onSelectDocument])
+  useEffect(() => { alive.current = true; return () => { alive.current = false } }, [])
+  useEffect(() => {
+    function reconcile() { setAttempt((n) => n + 1) }
+    window.addEventListener('deletion-settled', reconcile)
+    return () => window.removeEventListener('deletion-settled', reconcile)
+  }, [])
   const [uploading, setUploading] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
   const addRef = useRef<HTMLButtonElement>(null)
@@ -49,10 +63,23 @@ function SubjectDocumentsPage({
   }, [collapsed])
   function toggleSidebar() { toggledRef.current = true; setCollapsed((value) => !value) }
   useEffect(() => {
-    let alive = true
-    listDocuments(subject.id).then((items) => { if (alive) { setDocuments(items); setState('ready') } }).catch(() => { if (alive) setState('error') })
-    return () => { alive = false }
+    let current = true
+    const version = ++listVersion.current
+    listDocuments(subject.id).then((items) => {
+      if (current && version === listVersion.current) {
+        setDocuments(items); setState('ready')
+        if (selection.current !== null && !items.some((item) => item.id === selection.current)) selectDocument.current(null)
+      }
+    }).catch(() => { if (current && version === listVersion.current) setState('error') })
+    return () => { current = false }
   }, [subject.id, attempt])
+  async function refreshDocuments() {
+    const version = ++listVersion.current
+    const items = await listDocuments(subject.id)
+    if (!alive.current || version !== listVersion.current) return
+    setDocuments(items); setState('ready')
+    if (selection.current !== null && !items.some((item) => item.id === selection.current)) onSelectDocument(null)
+  }
   const selectedDocument = documents.find((document) => document.id === selectedDocumentId)
 
   function formatFileSize(bytes: number) {
@@ -79,6 +106,7 @@ function SubjectDocumentsPage({
         <h1 id="subject-page-title">{subject.name}</h1>
       </header>
 
+      {deleting && <DeleteDialog kind="documents" id={deleting.id} name={deleting.filename} returnFocusRef={deleteFocus} onClose={() => setDeleting(null)} onDeleted={() => { setDocuments((items) => items.filter((item) => item.id !== deleting.id)); if (selection.current === deleting.id) onSelectDocument(null) }} onRefresh={refreshDocuments} />}
       <div className={`subject-page-layout${collapsed ? ' sidebar-collapsed' : ''}`}>
         <div className="document-sidebar-container" ref={sidebarContainerRef}>
         <aside ref={sidebarRef} id="document-sidebar" className="document-sidebar" aria-labelledby="document-sidebar-title" inert={collapsed}>
@@ -99,6 +127,7 @@ function SubjectDocumentsPage({
                   <span>{document.filename}</span>
                   <span>{document.week_number}주차</span>
                 </button>
+                <button type="button" className="document-delete" aria-label={`${document.filename} 삭제`} onClick={(event) => { deleteFocus.current = event.currentTarget; setDeleting(document) }}>삭제</button>
               </li>
             ))}
           </ul>
