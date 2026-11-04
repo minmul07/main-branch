@@ -3,7 +3,36 @@ import { beforeEach, expect, test, vi } from 'vitest'
 import DeleteDialog from './DeleteDialog'
 
 beforeEach(() => vi.restoreAllMocks())
+
+test('subject with documents immediately requires the exact name', async () => {
+  const fetchMock = vi.fn().mockResolvedValueOnce({ ok: true, json: async () => [{ id: 1 }] }).mockResolvedValueOnce({ status: 204 })
+  vi.stubGlobal('fetch', fetchMock)
+  const onDeleted = vi.fn()
+  render(<DeleteDialog kind="subjects" id={7} name="자료구조" returnFocusRef={{ current: null }} onClose={vi.fn()} onDeleted={onDeleted} onRefresh={vi.fn().mockResolvedValue(undefined)} />)
+  const input = await screen.findByRole('textbox', { name: '삭제할 과목명' })
+  expect(screen.getByText('자료구조', { selector: 'strong' })).toBeTruthy()
+  const confirm = screen.getByRole('button', { name: '삭제 확인' }) as HTMLButtonElement
+  expect(confirm.disabled).toBe(true)
+  fireEvent.change(input, { target: { value: '다른 이름' } })
+  fireEvent.click(confirm)
+  expect(fetchMock).toHaveBeenCalledTimes(1)
+  fireEvent.change(input, { target: { value: '자료구조' } })
+  fireEvent.click(confirm)
+  await waitFor(() => expect(onDeleted).toHaveBeenCalledTimes(1))
+  expect(fetchMock.mock.calls[1][0]).toContain(`confirmed_name=${encodeURIComponent('자료구조')}`)
+})
 const response = (status: number) => ({ status }) as Response
+
+test('subject document lookup failure blocks deletion and allows retry', async () => {
+  const fetchMock = vi.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({ ok: true, json: async () => [] })
+  vi.stubGlobal('fetch', fetchMock)
+  render(<DeleteDialog kind="subjects" id={7} name="과목" returnFocusRef={{ current: null }} onClose={vi.fn()} onDeleted={vi.fn()} onRefresh={vi.fn()} />)
+  expect((screen.getByRole('button', { name: '삭제 확인' }) as HTMLButtonElement).disabled).toBe(true)
+  fireEvent.click(await screen.findByRole('button', { name: '다시 시도' }))
+  await waitFor(() => expect((screen.getByRole('button', { name: '삭제 확인' }) as HTMLButtonElement).disabled).toBe(false))
+  expect(screen.queryByRole('textbox')).toBeNull()
+  expect(fetchMock.mock.calls.every((call) => call[1] === undefined)).toBe(true)
+})
 function setup() {
   const onClose = vi.fn()
   const onDeleted = vi.fn()

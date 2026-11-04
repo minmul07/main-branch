@@ -49,6 +49,46 @@ def subject(client: TestClient) -> int:
     return response.json()["id"]
 
 
+def test_subject_name_confirmation_deletes_all_documents(
+    client: TestClient, temp_database_engine: Engine, upload_dir: Path,
+) -> None:
+    target, other = subject(client), subject(client)
+    ids = [document(client, target), document(client, target)]
+    kept = document(client, other)
+    paths = [original(temp_database_engine, upload_dir, item) for item in ids]
+    assert client.delete(f"/subjects/{target}").status_code == 409
+    assert client.delete(f"/subjects/{target}", params={"confirmed_name": "wrong"}).status_code == 409
+    assert all(path.exists() for path in paths)
+    assert client.delete(f"/subjects/{target}", params={"confirmed_name": "운영체제"}).status_code == 204
+    assert all(not path.exists() for path in paths)
+    assert client.get(f"/documents/{kept}/file").status_code == 200
+    assert client.get(f"/documents?subject_id={target}").status_code == 404
+
+
+def test_subject_cascade_failure_restores_all_originals(
+    client: TestClient, temp_database_engine: Engine, upload_dir: Path, monkeypatch: MonkeyPatch,
+) -> None:
+    target = subject(client)
+    ids = [document(client, target), document(client, target)]
+    paths = [original(temp_database_engine, upload_dir, item) for item in ids]
+    saved = {path: path.read_bytes() for path in paths}
+    real_delete = document_repository.delete_document
+    calls = 0
+
+    def fail_second(session: Session, item: Document) -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise RuntimeError("simulated failure")
+        real_delete(session, item)
+
+    monkeypatch.setattr(document_repository, "delete_document", fail_second)
+    assert client.delete(f"/subjects/{target}", params={"confirmed_name": "운영체제"}).status_code == 500
+    assert len(client.get(f"/documents?subject_id={target}").json()) == 2
+    assert all(path.read_bytes() == data for path, data in saved.items())
+    assert not list(upload_dir.glob(".delete-*"))
+
+
 def document(client: TestClient, subject_id: int) -> int:
     response = client.post(
         "/documents", data={"subject_id": subject_id, "week_number": 1},

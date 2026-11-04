@@ -97,7 +97,7 @@ P0 MVP에서 frontend와 backend가 같은 경로와 데이터 의미를 사용�
 
 ### 삭제 API 확정 계약 (#25)
 
-- `DELETE /subjects/{subject_id}`: 자료가 없는 과목만 삭제한다. 성공은 본문 없는 `204`, 없는 과목은 `404`, 연결된 Document가 하나라도 있으면 `409`이다. 먼저 자료를 각각 삭제한 뒤 과목 삭제를 다시 요청한다. 다른 과목과 자료에는 영향을 주지 않는다.
+- `DELETE /subjects/{subject_id}`: 빈 과목은 즉시 삭제한다. 자료가 있으면 `confirmed_name` 쿼리가 현재 과목명과 정확히 일치해야 과목·모든 자료·원본 PDF를 함께 삭제한다. 누락·불일치는 `409`, 없는 과목은 `404`, 성공은 본문 없는 `204`이다. 전체 자료를 같은 트랜잭션에서 삭제하며 실패 시 격리한 원본을 모두 복원한다. 다른 과목과 자료에는 영향을 주지 않는다.
 - `DELETE /documents/{document_id}`: 해당 Document 행과 서버 저장 PDF 원본만 삭제한다. 성공은 본문 없는 `204`, 없는 자료는 `404`이다. 원본이 이미 없으면 메타데이터 삭제를 허용한다. 현재 Page/Note 테이블은 없으므로 삭제할 연관 행도 없으며, 도입 시 삭제 정책을 별도로 확장한다.
 - 두 경로 ID는 양의 정수 문자열이며 0·음수·문자·소수 형태는 `422`이다. 오류는 기존 `detail` 형식이며 문구는 고정 계약이 아니다. 저장소·DB 실패는 `500`이고 성공 응답을 반환하지 않는다. DELETE는 CORS 허용 메서드에 포함한다.
 
@@ -121,7 +121,7 @@ DB와 파일시스템은 단일 원자적 트랜잭션이 아니다. commit 이�
 | --- | --- | --- | --- |
 | GET | `/subjects` | 없음 | 과목 목록: ID, 이름 |
 | POST | `/subjects` | 과목 이름 `name` | 생성한 과목 |
-| DELETE | `/subjects/{id}` | 과목 ID | 구현됨. 빈 과목만 삭제 204, 자료가 있으면 409 |
+| DELETE | `/subjects/{id}` | 과목 ID, 선택적 confirmed_name | 빈 과목 또는 정확한 과목명 확인 시 일괄 삭제 204, 자료가 있고 이름 미확인 시 409 |
 | POST | `/documents` | PDF `file`, 과목 `subject_id`, 주차 `week_number` | 구현됨. 생성한 Document 메타데이터 |
 | GET | `/documents?subject_id={id}` | 과목 ID | 구현됨. 과목별 Document 목록 |
 | GET | `/documents/{id}` | 문서 ID | 구현됨. Document 메타데이터. 처리 상태 필드는 OCR 단계에서 협의 |
