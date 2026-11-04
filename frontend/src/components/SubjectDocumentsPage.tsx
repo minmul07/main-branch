@@ -24,6 +24,15 @@ function SubjectDocumentsPage({
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [attempt, setAttempt] = useState(0)
   const [deleting, setDeleting] = useState<MockDocument | null>(null)
+  const [openMenuId, setOpenMenuId] = useState<number | null>(null)
+  useEffect(() => {
+    if (openMenuId === null) return
+    function closeOutside(event: globalThis.MouseEvent) {
+      if (!(event.target instanceof Element) || !event.target.closest('[data-document-menu]')) setOpenMenuId(null)
+    }
+    document.addEventListener('click', closeOutside)
+    return () => document.removeEventListener('click', closeOutside)
+  }, [openMenuId])
   const deleteFocus = useRef<HTMLElement | null>(null)
   const alive = useRef(true)
   const listVersion = useRef(0)
@@ -61,7 +70,7 @@ function SubjectDocumentsPage({
   useLayoutEffect(() => {
     if (toggledRef.current) (collapsed ? expandRef : collapseRef).current?.focus()
   }, [collapsed])
-  function toggleSidebar() { toggledRef.current = true; setCollapsed((value) => !value) }
+  function toggleSidebar() { toggledRef.current = true; setOpenMenuId(null); setCollapsed((value) => !value) }
   useEffect(() => {
     let current = true
     const version = ++listVersion.current
@@ -127,7 +136,12 @@ function SubjectDocumentsPage({
                   <span>{document.filename}</span>
                   <span>{document.week_number}주차</span>
                 </button>
-                <button type="button" className="document-delete" aria-label={`${document.filename} 삭제`} onClick={(event) => { deleteFocus.current = event.currentTarget; setDeleting(document) }}>삭제</button>
+                <div className="notebook-info document-menu" data-document-menu>
+                  <button type="button" className="notebook-info-toggle" aria-label={`${document.filename} 메뉴`} aria-haspopup="dialog" aria-expanded={openMenuId === document.id} aria-controls={openMenuId === document.id ? `document-menu-${document.id}` : undefined} onClick={() => setOpenMenuId((current) => current === document.id ? null : document.id)}>⋮</button>
+                  {openMenuId === document.id && <div className="notebook-info-content" id={`document-menu-${document.id}`} role="dialog" aria-label={`${document.filename} 메뉴`}>
+                    <button type="button" aria-label={`${document.filename} 삭제`} onClick={(event) => { deleteFocus.current = event.currentTarget.parentElement?.previousElementSibling as HTMLElement; setOpenMenuId(null); setDeleting(document) }}>삭제</button>
+                  </div>}
+                </div>
               </li>
             ))}
           </ul>
