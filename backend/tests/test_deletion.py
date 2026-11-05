@@ -65,6 +65,22 @@ def test_subject_name_confirmation_deletes_all_documents(
     assert client.get(f"/documents?subject_id={target}").status_code == 404
 
 
+def test_subject_counts_follow_upload_and_delete(client: TestClient) -> None:
+    target, other, empty = subject(client), subject(client), subject(client)
+    assert [item["document_count"] for item in client.get("/subjects").json()] == [0, 0, 0]
+    first = document(client, target)
+    document(client, target)
+    document(client, other)
+    listed = client.get("/subjects").json()
+    assert [item["id"] for item in listed] == [target, other, empty]
+    assert [item["document_count"] for item in listed] == [2, 1, 0]
+    # 목록 조회 이후 업로드된 자료는 이름 확인 없이는 삭제하지 않는다.
+    document(client, empty)
+    assert client.delete(f"/subjects/{empty}").status_code == 409
+    assert client.delete(f"/documents/{first}").status_code == 204
+    assert [item["document_count"] for item in client.get("/subjects").json()] == [1, 1, 1]
+
+
 def test_subject_cascade_failure_restores_all_originals(
     client: TestClient, temp_database_engine: Engine, upload_dir: Path, monkeypatch: MonkeyPatch,
 ) -> None:
@@ -135,7 +151,7 @@ def test_delete_flow_persists_and_preserves_others(
             assert session.get(Document, unrelated) is not None
             assert session.get(Subject, first) is None
             assert session.get(Subject, other) is not None
-        assert client.get("/subjects").json() == [{"id": other, "name": "운영체제"}]
+        assert client.get("/subjects").json() == [{"id": other, "name": "운영체제", "document_count": 1}]
         assert client.get(f"/documents/{unrelated}/file").content == text_pdf()
     finally:
         fresh.dispose()

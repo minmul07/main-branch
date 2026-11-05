@@ -1,4 +1,4 @@
-export type Subject = { id: number; name: string }
+export type Subject = { id: number; name: string; document_count: number }
 
 export type MockDocument = {
   id: number

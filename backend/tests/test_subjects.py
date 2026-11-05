@@ -40,7 +40,7 @@ def test_create_subject_then_listed(client: TestClient) -> None:
     assert response.status_code == 201
     body = response.json()
     assert isinstance(body["id"], int)
-    assert body == {"id": body["id"], "name": "운영체제"}
+    assert body == {"id": body["id"], "name": "운영체제", "document_count": 0}
     assert client.get("/subjects").json() == [body]
 
 
