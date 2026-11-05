@@ -367,7 +367,7 @@ def test_documents_persist_after_reinit_and_reconnect(
         listed = client.get("/documents", params={"subject_id": subject_id}).json()
         assert [document["id"] for document in listed] == [document_id]
         assert client.get(f"/documents/{document_id}/file").content == data
-        assert client.get("/subjects").json() == [{"id": subject_id, "name": "운영체제"}]
+        assert client.get("/subjects").json() == [{"id": subject_id, "name": "운영체제", "document_count": 1}]
     finally:
         new_engine.dispose()
 

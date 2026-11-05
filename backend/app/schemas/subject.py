@@ -16,3 +16,4 @@ class SubjectRead(BaseModel):
 
     id: int
     name: str
+    document_count: int

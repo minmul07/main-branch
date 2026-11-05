@@ -12,7 +12,7 @@ const docs = [
 const ok = (data: unknown) => ({ ok: true, json: async () => data })
 function Harness() {
   const [selected, setSelected] = useState<number | null>(11)
-  return <SubjectDocumentsPage subject={{ id: 1, name: '수업' }} selectedDocumentId={selected} onBack={() => {}} onSelectDocument={setSelected} />
+  return <SubjectDocumentsPage subject={{ id: 1, name: '수업', document_count: 2 }} selectedDocumentId={selected} onBack={() => {}} onSelectDocument={setSelected} />
 }
 
 test('document menu opens one at a time and closes outside without changing selection', async () => {
@@ -96,12 +96,12 @@ test('late document DELETE after switching subjects preserves new selection', as
   let resolve!: (value: unknown) => void
   vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(ok(docs)).mockReturnValueOnce(new Promise((r) => { resolve = r })).mockResolvedValue(ok([{ ...docs[1], subject_id: 2 }])))
   const onSelect = vi.fn()
-  const view = render(<SubjectDocumentsPage key={1} subject={{ id: 1, name: '수업' }} selectedDocumentId={11} onBack={() => {}} onSelectDocument={onSelect} />)
+  const view = render(<SubjectDocumentsPage key={1} subject={{ id: 1, name: '수업', document_count: 2 }} selectedDocumentId={11} onBack={() => {}} onSelectDocument={onSelect} />)
   await screen.findByTestId('viewer')
   fireEvent.click(screen.getByRole('button', { name: '선택.pdf 메뉴' }))
   fireEvent.click(screen.getByRole('button', { name: '선택.pdf 삭제' }))
   fireEvent.click(screen.getByRole('button', { name: '삭제 확인' }))
-  view.rerender(<SubjectDocumentsPage key={2} subject={{ id: 2, name: '다른 수업' }} selectedDocumentId={12} onBack={() => {}} onSelectDocument={onSelect} />)
+  view.rerender(<SubjectDocumentsPage key={2} subject={{ id: 2, name: '다른 수업', document_count: 2 }} selectedDocumentId={12} onBack={() => {}} onSelectDocument={onSelect} />)
   await screen.findByRole('button', { name: '유지.pdf 메뉴' })
   await act(async () => resolve({ status: 204 }))
   expect(screen.getByTestId('viewer').textContent).toBe('PDF 12')
@@ -127,7 +127,7 @@ test('returning before old DELETE settles reconciles the current list and select
 
 test('collapses and restores the document list with keyboard focus', async () => {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => [] }))
-  render(<SubjectDocumentsPage subject={{ id: 1, name: '수업' }} selectedDocumentId={null} onBack={() => {}} onSelectDocument={() => {}} />)
+  render(<SubjectDocumentsPage subject={{ id: 1, name: '수업', document_count: 2 }} selectedDocumentId={null} onBack={() => {}} onSelectDocument={() => {}} />)
   await screen.findByText('등록된 자료가 없습니다.')
   fireEvent.click(screen.getByRole('button', { name: '자료 목록 접기' }))
   const show = screen.getByRole('button', { name: '자료 목록 펼치기' })

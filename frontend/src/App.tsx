@@ -83,7 +83,7 @@ function App() {
       <>
         <header className="notebooks-header"><h1>내 수업</h1><button ref={addRef} className="new-notebook" type="button" aria-expanded={adding} aria-controls="add-subject" onClick={() => setAdding(true)}><span className="plus" aria-hidden="true">＋</span>수업 추가</button></header>
         {adding && <SubjectCreateForm onClose={() => setAdding(false)} onCreateSubject={create} returnFocusRef={addRef} />}
-        {deleting && <DeleteDialog kind="subjects" id={deleting.id} name={deleting.name} returnFocusRef={deleteFocus} onClose={() => setDeleting(null)} onDeleted={() => setSubjects((items) => items.filter((item) => item.id !== deleting.id))} onRefresh={refreshSubjects} />}
+        {deleting && <DeleteDialog kind="subjects" id={deleting.id} name={deleting.name} documentCount={deleting.document_count} returnFocusRef={deleteFocus} onClose={() => setDeleting(null)} onDeleted={() => setSubjects((items) => items.filter((item) => item.id !== deleting.id))} onRefresh={refreshSubjects} />}
         {subjects.length === 0 && <p>등록된 과목이 없습니다.</p>}
         <ul className="notebook-grid" aria-label="과목 목록">{subjects.map((subject) => <li className={`notebook-card${openMenuId === subject.id ? ' has-open-menu' : ''}`} key={subject.id}>
           <a className="notebook-card-link" href={`/subjects/${subject.id}`} aria-label={`${subject.name} 과목 열기`} onClick={(event) => open(event, subject.id)} />
