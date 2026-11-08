@@ -112,7 +112,7 @@ Subject
 | `page_count` | 정수 또는 `NULL`, `NULL`이 아니면 `> 0` | 페이지 수. 확인 전 상태는 `NULL`로 두고 0으로 대체하지 않는다. 현재 업로드 흐름은 동기적으로 확인하므로 성공 응답은 1 이상이다. |
 
 - SQLite는 시간대를 저장하지 않으므로 `uploaded_at`은 항상 UTC로 기록하고, `DocumentRead`가 시간대 없는 값을 UTC로 해석해 `Z`로 끝나는 ISO 8601 문자열로 응답한다.
-- SQLite는 기본적으로 FK를 강제하지 않는다. 과목 존재 여부는 업로드 서비스에서 확인해 404로 처리한다. 삭제 cascade는 추가하지 않았다.
+- SQLite 연결마다 `PRAGMA foreign_keys=ON`으로 FK를 강제한다. 과목 존재 여부는 업로드 서비스에서도 확인해 404로 처리한다. 삭제 cascade는 추가하지 않았다.
 - `week_number`·`page_count`의 양수 조건은 API 검증과 별도로 DB CHECK 제약으로도 막는다.
 - commit·rollback은 Repository가 아니라 파일 저장과 DB 기록을 함께 조율하는 서비스가 담당한다.
 
@@ -145,7 +145,7 @@ Subject
 ### 한계와 정리 방침
 
 - 파일시스템과 SQLite는 하나의 원자적 트랜잭션이 아니다. 프로세스가 강제 종료되면 `.upload-*.tmp` 임시 파일이나, 최종 파일 이동 후 commit 전에 종료된 경우 DB 행이 없는 최종 파일이 남을 수 있다. commit 후에는 행과 파일이 모두 있다.
-- 남은 파일은 서버를 멈춘 상태에서 정리한다. `.upload-*.tmp`는 언제나 삭제해도 되고, 그 밖의 파일은 `documents.stored_name`에 없는 경우에만 삭제한다. 자동 정리 daemon은 이번 범위에서 만들지 않는다.
+- 남은 파일은 서버를 멈춘 상태에서 정리한다. `.upload-*.tmp`는 언제나 삭제해도 되고, 그 밖의 일반 업로드 파일은 `documents.stored_name`에 없는 경우에만 삭제한다. `.delete-*.pdf` 격리 파일은 이 기준으로 제거하지 않고 [삭제 복구 정책](API.md#파일-실패와-복구)에 따라 Document ID를 대조하여 복원하거나 제거한다. 자동 정리 daemon은 이번 범위에서 만들지 않는다.
 - pypdf는 검증할 때 파일을 메모리로 읽는다. 크기 상한을 먼저 확인하므로 사용량은 `MAX_UPLOAD_SIZE_BYTES` 이하로 제한된다.
 
 ## Document 후속 처리 경계
@@ -157,7 +157,7 @@ Subject
 | 페이지 텍스트 추출·`Page` 모델 | 미구현. `get_document_file_path()`로 원본을 찾고 pypdf로 추출한다. 업로드 `201`은 추출 완료를 뜻하지 않는다. |
 | OCR·처리 상태·재시도 | 미구현. 처리 상태 필드나 queued 상태를 만들지 않았다. 비동기 처리를 도입하면 `page_count`의 `NULL`(확인 전)과 상태 값을 함께 설계한다. |
 | FTS5 검색 | 미구현. Page 텍스트가 생긴 뒤 색인한다. |
-| Subject·Document 삭제 | 미구현. FK cascade를 추가하지 않았다. 원본 파일·페이지·메모 정리 정책을 합의한 뒤 서비스에서 DB 삭제와 파일 삭제를 함께 처리한다. |
+| Subject·Document 삭제 | `services/deletion.py`가 `BEGIN IMMEDIATE`로 삭제를 직렬화하고 Repository의 단건 삭제·flush 및 commit/rollback을 관리한다. 과목은 자료가 있으면 409로 거부한다. 자료는 원본을 격리한 뒤 행을 commit하고 격리 파일을 제거한다. 실패·강제 종료·수동 복구 정책은 [API.md](API.md#파일-실패와-복구)를 따른다. Page·Note 모델 도입 시 연관 삭제 정책을 확장한다. |
 | frontend 연결·PDF.js 뷰어 | 미구현(#19, #22). frontend는 `/documents` API를 호출하고 PDF.js는 `GET /documents/{id}/file`을 읽는다. CORS는 `CORS_ALLOWED_ORIGINS`로 허용하고 `Content-Disposition`을 노출한다. |
 | 중복 업로드 판별 | 하지 않는다. 같은 파일도 별도 Document로 저장한다. |
 | 남은 파일 자동 정리 | 하지 않는다. 강제 종료 시 남은 파일의 수동 정리 기준은 위 [한계와 정리 방침](#한계와-정리-방침)을 따른다. |

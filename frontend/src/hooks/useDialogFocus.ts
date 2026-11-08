@@ -37,7 +37,7 @@ export function useDialogFocus(returnFocusRef: DialogReturnFocusRef) {
       const activeDialog = dialogRef.current
       if (!activeDialog) return
 
-      const autofocusElement = activeDialog.querySelector<HTMLElement>('[data-dialog-autofocus]')
+      const autofocusElement = activeDialog.querySelector<HTMLElement>('[data-dialog-autofocus]:not(:disabled)')
       const firstFocusableElement = getFocusableElements(activeDialog)[0]
       ;(autofocusElement ?? firstFocusableElement ?? activeDialog).focus()
     }

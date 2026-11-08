@@ -26,6 +26,7 @@ from backend.app.repositories import document as document_repository
 from backend.app.repositories import subject as subject_repository
 from backend.app.schemas.document import DocumentRead, IntegerString
 from backend.app.services import documents as document_service
+from backend.app.services import deletion
 
 # multipart 경계와 subject_id·week_number 필드가 차지하는 여유분.
 MULTIPART_OVERHEAD_BYTES = 64 * 1024
@@ -78,6 +79,21 @@ def get_document_or_404(db: Session, document_id: int) -> Document:
     if document is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
     return document
+
+
+@router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_document(
+    document_id: Annotated[IntegerString, PathParam(gt=0)],
+    db: Session = Depends(get_db),
+    settings: UploadSettings = Depends(get_upload_settings),
+) -> Response:
+    try:
+        deletion.delete_document(db, document_id, settings.upload_dir)
+    except deletion.TargetNotFoundError as error:
+        raise HTTPException(404, detail="Document not found.") from error
+    except deletion.DeletionError as error:
+        raise HTTPException(500, detail="Failed to delete document.") from error
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("", response_model=DocumentRead, status_code=status.HTTP_201_CREATED)

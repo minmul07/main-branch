@@ -4,7 +4,7 @@ import App from './App'
 const ok = (data: unknown) => ({ ok: true, json: async () => data }) as Response
 beforeEach(() => { window.history.replaceState({}, '', '/'); vi.restoreAllMocks() })
 test('loads subjects and navigates to documents', async () => {
-  vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(ok([{ id: 7, name: '자료구조'  }])).mockResolvedValueOnce(ok([{ id: 1, filename: 'test1.pdf', week_number: 1 }])))
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(ok([{ id: 7, name: '자료구조', document_count: 0  }])).mockResolvedValueOnce(ok([{ id: 1, filename: 'test1.pdf', week_number: 1 }])))
   render(<App />)
   expect(screen.getByRole('status')).toBeTruthy()
   fireEvent.click(await screen.findByRole('link', { name: '자료구조 과목 열기' }))
@@ -24,7 +24,7 @@ test('retries failed loading and shows empty state', async () => {
 test('preserves input on failure and uses server id on success', async () => {
   let reject!: (reason: Error) => void
   const pending = new Promise<Response>((_, r) => { reject = r })
-  const fetchMock = vi.fn().mockResolvedValueOnce(ok([])).mockReturnValueOnce(pending).mockResolvedValueOnce(ok({ id: 42, name: '과목' }))
+  const fetchMock = vi.fn().mockResolvedValueOnce(ok([])).mockReturnValueOnce(pending).mockResolvedValueOnce(ok({ id: 42, name: '과목', document_count: 0 }))
   vi.stubGlobal('fetch', fetchMock)
   render(<App />)
   fireEvent.click(await screen.findByRole('button', { name: '수업 추가' }))
@@ -53,14 +53,19 @@ test('direct route waits for lookup', async () => {
   expect(await screen.findByText('과목을 찾을 수 없습니다.')).toBeTruthy()
 })
 
-test('subject menu opens one at a time and delete does nothing', async () => {
-  const fetchMock = vi.fn().mockResolvedValue(ok([{ id: 1, name: '과목' }, { id: 2, name: '다른 과목' }]))
+test.each([0, 2])('subject menu uses count %s immediately and cancellation restores focus', async (count) => {
+  const fetchMock = vi.fn().mockResolvedValue(ok([{ id: 1, name: '과목', document_count: count }, { id: 2, name: '다른 과목', document_count: 0 }]))
   vi.stubGlobal('fetch', fetchMock)
   render(<App />)
   fireEvent.click(await screen.findByRole('button', { name: '과목 메뉴' }))
   fireEvent.click(screen.getByRole('button', { name: '삭제' }))
   expect(screen.getByRole('link', { name: '과목 과목 열기' })).toBeTruthy()
   expect(fetchMock).toHaveBeenCalledTimes(1)
+  expect(Boolean(screen.queryByRole('textbox', { name: '삭제할 과목명' }))).toBe(count > 0)
+  expect(screen.getByRole('dialog', { name: '과목 삭제' })).toBeTruthy()
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: '취소' }))
+  fireEvent.keyDown(screen.getByRole('dialog', { name: '과목 삭제' }), { key: 'Escape' })
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: '과목 메뉴' }))
   fireEvent.click(screen.getByRole('button', { name: '다른 과목 메뉴' }))
   expect(screen.queryByRole('dialog', { name: '과목 메뉴' })).toBeNull()
   expect(screen.getByRole('dialog', { name: '다른 과목 메뉴' })).toBeTruthy()
@@ -69,10 +74,11 @@ test('subject menu opens one at a time and delete does nothing', async () => {
 })
 
 test('allows an existing name and a 100-character name', async () => {
-  const fetchMock = vi.fn().mockResolvedValueOnce(ok([{ id: 1, name: '과목' }]))
-    .mockResolvedValueOnce(ok({ id: 2, name: '과목' }))
+  const fetchMock = vi.fn().mockResolvedValueOnce(ok([{ id: 1, name: '과목', document_count: 0 }]))
+    .mockResolvedValueOnce(ok({ id: 2, name: '과목', document_count: 0 }))
     .mockResolvedValueOnce(ok([]))
-    .mockResolvedValueOnce(ok({ id: 3, name: '가'.repeat(100) }))
+    .mockResolvedValueOnce(ok([{ id: 1, name: '과목', document_count: 0 }, { id: 2, name: '과목', document_count: 0 }]))
+    .mockResolvedValueOnce(ok({ id: 3, name: '가'.repeat(100), document_count: 0 }))
   vi.stubGlobal('fetch', fetchMock)
   render(<App />)
   fireEvent.click(await screen.findByRole('button', { name: '수업 추가' }))
@@ -84,4 +90,23 @@ test('allows an existing name and a 100-character name', async () => {
   fireEvent.change(screen.getByRole('textbox', { name: '과목 이름' }), { target: { value: '가'.repeat(100) } })
   fireEvent.click(screen.getByRole('button', { name: '과목 추가' }))
   await waitFor(() => expect(window.location.pathname).toBe('/subjects/3'))
+})
+
+test('subject deletion refreshes server list and preserves unrelated subjects', async () => {
+  const fetchMock = vi.fn().mockResolvedValueOnce(ok([{ id: 7, name: '삭제 과목', document_count: 0 }, { id: 8, name: '유지 과목', document_count: 0 }]))
+    .mockResolvedValueOnce({ status: 204 })
+    .mockResolvedValueOnce(ok([{ id: 8, name: '유지 과목', document_count: 0 }]))
+  vi.stubGlobal('fetch', fetchMock)
+  render(<App />)
+  fireEvent.click(await screen.findByRole('button', { name: '삭제 과목 메뉴' }))
+  fireEvent.click(screen.getByRole('button', { name: '삭제' }))
+  await waitFor(() => expect((screen.getByRole('button', { name: '삭제 확인' }) as HTMLButtonElement).disabled).toBe(false))
+  fireEvent.click(screen.getByRole('button', { name: '삭제 확인' }))
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  expect(screen.queryByRole('link', { name: '삭제 과목 과목 열기' })).toBeNull()
+  expect(screen.getByRole('link', { name: '유지 과목 과목 열기' })).toBeTruthy()
+  expect(fetchMock.mock.calls[1][0]).toMatch(/\/subjects\/7$/)
+  expect(fetchMock.mock.calls[1][1]).toEqual({ method: 'DELETE' })
+  expect(screen.queryByRole('dialog')).toBeNull()
+  expect(document.activeElement?.isConnected).toBe(true)
 })
