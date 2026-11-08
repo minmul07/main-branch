@@ -45,4 +45,4 @@ def create_subject(payload: SubjectCreate, db: Session = Depends(get_db)) -> Sub
         db.rollback()
         raise
     db.refresh(subject)
-    return SubjectRead.model_validate(subject)
+    return SubjectRead(id=subject.id, name=subject.name, document_count=0)

@@ -2,11 +2,12 @@ from collections.abc import Generator
 from pathlib import Path
 
 from pytest import fixture
-from sqlalchemy import Engine, text
+from sqlalchemy import Engine, event, text
 from sqlalchemy.orm import Session
 
 from backend.app import database
 from backend.app.init_db import init_db
+from backend.app.models.document import Document
 from backend.app.repositories.subject import create_subject, list_subjects
 
 
@@ -80,6 +81,33 @@ def test_list_subjects_orders_by_id(engine: Engine) -> None:
 
     assert [subject.id for subject in subjects] == sorted(subject.id for subject in subjects)
     assert [subject.name for subject in subjects] == ["운영체제", "자료구조", "오픈소스"]
+
+
+def test_list_subjects_counts_documents_in_one_query(engine: Engine) -> None:
+    with Session(engine) as session:
+        subjects = [create_subject(session, "same") for _ in range(12)]
+        ids = [subject.id for subject in subjects]
+        for index, subject_id in enumerate([ids[0], ids[0], ids[1]]):
+            session.add(Document(
+                subject_id=subject_id, week_number=index + 1, filename="same.pdf",
+                stored_name=f"{index}.pdf", file_size_bytes=10, page_count=None,
+            ))
+        session.commit()
+
+    statements = []
+
+    def record(connection, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+
+    event.listen(engine, "before_cursor_execute", record)
+    try:
+        with Session(engine) as session:
+            listed = list_subjects(session)
+            assert [item.id for item in listed] == ids
+            assert [item.document_count for item in listed] == [2, 1] + [0] * 10
+        assert len(statements) == 1
+    finally:
+        event.remove(engine, "before_cursor_execute", record)
 
 
 def test_committed_subject_persists_after_reconnect(engine: Engine, database_path: Path) -> None:
