@@ -4,7 +4,7 @@
 
 P0 MVP에서 frontend와 backend가 같은 경로와 데이터 의미를 사용하기 위한 계약 초안이다. [ARCHITECTURE.md](ARCHITECTURE.md)의 역할 경계와 최소 데이터 관계를 따른다.
 
-현재 구현된 API는 `GET /health`, `GET /subjects`, `POST /subjects`, `DELETE /subjects/{id}`, `POST /documents`, `GET /documents`, `GET /documents/{id}`, `GET /documents/{id}/file`, `DELETE /documents/{id}`, `DELETE /notes/{id}`이다. 구현된 계약은 아래 [구현된 API](#구현된-api)에 정리하며, 그 외 업무 endpoint는 구현 전 제안이다. 팀 합의 후 구현과 OpenAPI에 반영한다.
+현재 구현된 API는 `GET /health`, `GET /subjects`, `POST /subjects`, `DELETE /subjects/{id}`, `POST /documents`, `GET /documents`, `GET /documents/{id}`, `GET /documents/{id}/file`, `DELETE /documents/{id}`, `GET /documents/{id}/pages/{page}/notes`, `POST /documents/{id}/pages/{page}/notes`, `PATCH /notes/{id}`, `DELETE /notes/{id}`이다. 구현된 계약은 아래 [구현된 API](#구현된-api)에 정리하며, 그 외 업무 endpoint는 구현 전 제안이다. 팀 합의 후 구현과 OpenAPI에 반영한다.
 
 ## 공통 규칙 제안
 
