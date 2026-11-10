@@ -1,15 +1,18 @@
 from collections.abc import Iterator
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 from httpx import Response
 from pytest import fixture, mark
-from sqlalchemy import Engine
+from sqlalchemy import Engine, func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from backend.app.database import Base, get_db
 from backend.app.main import app
 from backend.app.models.document import Document
+from backend.app.models.note import Note
 from backend.app.models.subject import Subject
+from backend.app.services import deletion
 
 
 @fixture
@@ -315,3 +318,32 @@ def test_invalid_note_id_returns_422(client: TestClient, method: str) -> None:
         kwargs = {"json": {"title": "x"}} if method == "patch" else {}
 
         assert getattr(client, method)(f"/notes/{note_id}", **kwargs).status_code == 422
+
+
+def test_delete_document_removes_its_notes_only(
+    client: TestClient, temp_database_engine: Engine, tmp_path: Path
+) -> None:
+    first_document = add_document(temp_database_engine, stored_name="doc-1")
+    second_document = add_document(temp_database_engine, stored_name="doc-2")
+    client.post(notes_url(first_document, 1), json={"content": "지워질 메모"})
+    keep = client.post(notes_url(second_document, 1), json={"content": "남을 메모"}).json()
+
+    with sessionmaker(bind=temp_database_engine)() as session:
+        deletion.delete_document(session, first_document, tmp_path)
+
+    assert client.get(notes_url(first_document, 1)).status_code == 404
+    assert client.get(notes_url(second_document, 1)).json() == [keep]
+
+
+def test_delete_subject_removes_notes_of_its_documents(
+    client: TestClient, temp_database_engine: Engine, tmp_path: Path
+) -> None:
+    document_id = add_document(temp_database_engine)
+    client.post(notes_url(document_id, 1), json={"content": "메모"})
+
+    with sessionmaker(bind=temp_database_engine)() as session:
+        subject_id = session.get(Document, document_id).subject_id
+        deletion.delete_subject(session, subject_id, tmp_path, confirmed_name="운영체제")
+        remaining = session.scalar(select(func.count()).select_from(Note))
+
+    assert remaining == 0

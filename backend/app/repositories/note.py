@@ -1,4 +1,4 @@
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from backend.app.models.note import Note
@@ -59,3 +59,8 @@ def update_note(
 def delete_note(session: Session, note: Note) -> None:
     session.delete(note)
     session.flush()
+
+
+def delete_notes_by_document(session: Session, document_id: int) -> None:
+    # 자료를 삭제하기 전에 그 자료의 메모를 모두 지운다.)
+    session.execute(delete(Note).where(Note.document_id == document_id))
