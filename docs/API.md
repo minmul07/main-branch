@@ -4,7 +4,7 @@
 
 P0 MVP에서 frontend와 backend가 같은 경로와 데이터 의미를 사용하기 위한 계약 초안이다. [ARCHITECTURE.md](ARCHITECTURE.md)의 역할 경계와 최소 데이터 관계를 따른다.
 
-현재 구현된 API는 `GET /health`, `GET /subjects`, `POST /subjects`, `DELETE /subjects/{id}`, `POST /documents`, `GET /documents`, `GET /documents/{id}`, `GET /documents/{id}/file`, `DELETE /documents/{id}`이다. 구현된 계약은 아래 [구현된 API](#구현된-api)에 정리하며, 그 외 업무 endpoint는 구현 전 제안이다. 팀 합의 후 구현과 OpenAPI에 반영한다.
+현재 구현된 API는 `GET /health`, `GET /subjects`, `POST /subjects`, `DELETE /subjects/{id}`, `POST /documents`, `GET /documents`, `GET /documents/{id}`, `GET /documents/{id}/file`, `DELETE /documents/{id}`, `DELETE /notes/{id}`이다. 구현된 계약은 아래 [구현된 API](#구현된-api)에 정리하며, 그 외 업무 endpoint는 구현 전 제안이다. 팀 합의 후 구현과 OpenAPI에 반영한다.
 
 ## 공통 규칙 제안
 
@@ -114,7 +114,7 @@ DB와 파일시스템은 단일 원자적 트랜잭션이 아니다. commit 이�
 
 ### CORS
 
-브라우저 frontend가 다른 origin에서 호출할 수 있도록 `CORS_ALLOWED_ORIGINS`(기본 `http://127.0.0.1:5173,http://localhost:5173`)만 허용한다. 메서드는 `GET`·`POST`·`DELETE`, 요청 헤더는 `Content-Type`·`Range`를 허용하고 `Content-Disposition`·`Accept-Ranges`·`Content-Range` 응답 헤더를 노출한다. PDF.js는 `Accept-Ranges: bytes`를 확인해 지원되는 파일의 부분 요청을 사용한다. frontend 포트를 바꾸면 이 값을 함께 바꾼다.
+브라우저 frontend가 다른 origin에서 호출할 수 있도록 `CORS_ALLOWED_ORIGINS`(기본 `http://127.0.0.1:5173,http://localhost:5173`)만 허용한다. 메서드는 `GET`·`POST`·`PATCH`·`DELETE`, 요청 헤더는 `Content-Type`·`Range`를 허용하고 `Content-Disposition`·`Accept-Ranges`·`Content-Range` 응답 헤더를 노출한다. PDF.js는 `Accept-Ranges: bytes`를 확인해 지원되는 파일의 부분 요청을 사용한다. frontend 포트를 바꾸면 이 값을 함께 바꾼다.
 
 ## MVP endpoint
 
@@ -132,10 +132,10 @@ DB와 파일시스템은 단일 원자적 트랜잭션이 아니다. commit 이�
 | DELETE | `/documents/{id}` | 문서 ID | 구현됨. 메타데이터·원본 삭제 204; 실패·복구 정책은 위 확정 계약 참고 |
 | GET | `/documents/{id}/pages/{page}` | 문서 ID, 페이지 번호 | 페이지 ID, 문서 ID, 페이지 번호, 추출 텍스트 |
 | GET | `/search?q=...` | 검색어 `q`; 과목 범위 지정용 `subject_id` 제안 | 페이지 단위 검색 결과 목록 |
-| GET | `/pages/{id}/notes` | Page ID | 해당 페이지의 메모 목록 |
-| POST | `/pages/{id}/notes` | Page ID, 메모 내용 `content` | 생성한 메모 |
-| PATCH | `/notes/{id}` | Note ID, 수정할 `content` | 수정한 메모 |
-| DELETE | `/notes/{id}` | Note ID | 메모 삭제 |
+| GET | `/documents/{id}/pages/{page}/notes` | 문서 ID, 페이지 번호 | 구현됨. 해당 페이지의 메모 목록(ID 순) |
+| POST | `/documents/{id}/pages/{page}/notes` | 문서 ID, 페이지 번호, 본문 `title`(선택), `content`(선택) | 구현됨. 201, 생성한 메모. `title`을 비우면 "메모 N" 기본 이름 |
+| PATCH | `/notes/{id}` | Note ID, 수정할 `title`·`content` 중 보낼 것만 | 구현됨. 수정한 메모. 보내지 않은 칸은 유지 |
+| DELETE | `/notes/{id}` | Note ID | 구현됨. 204, 응답 본문 없음 |
 
 문서 등록의 주차는 별도 Week ID 대신 `week_number`로 전달하는 제안이다. 독립적인 주차 생성·관리의 필요성은 데이터 모델과 함께 협의한다.
 
@@ -153,7 +153,7 @@ DB와 파일시스템은 단일 원자적 트랜잭션이 아니다. commit 이�
 
 `GET /documents/{id}/pages/{page}`는 페이지 메타데이터와 텍스트를 조회하는 계약이다. PDF.js는 원본 PDF를 `GET /documents/{id}/file`에서 읽는다.
 
-메모 응답에는 최소한 메모 ID, Page ID와 내용이 필요하다. 생성·수정 시각 등 추가 필드는 Subject/Note 담당자와 frontend 담당자가 협의한다.
+메모는 Page 모델이 생기기 전까지 `document_id`와 `page_number`로 연결한다. 메모 응답은 `id`, `document_id`, `page_number`, `title`, `content`, `created_at`, `updated_at`을 담고 시각은 UTC다. 없는 자료·페이지(`page_count` 초과)·메모는 404, 잘못된 ID·페이지 번호, 수정 시 빈 `title`, 너무 긴 입력은 422다. `page_count`를 모르는 자료는 페이지 범위를 확인하지 않는다.
 
 ## 구현 전 합의할 항목
 
