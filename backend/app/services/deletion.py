@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from backend.app.repositories import document as document_repository
 from backend.app.repositories import note as note_repository
+from backend.app.repositories import page as page_repository
 from backend.app.repositories import subject as subject_repository
 
 logger = logging.getLogger(__name__)
@@ -71,6 +72,7 @@ def _delete(session: Session, upload_dir: Path | None, *, document_id: int | Non
                 original.rename(quarantine)
                 quarantines.append((original, quarantine))
             note_repository.delete_notes_by_document(session, document.id)
+            page_repository.delete_pages_by_document(session, document.id)
             document_repository.delete_document(session, document)
         if subject is not None:
             session.flush()
