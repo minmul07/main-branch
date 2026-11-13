@@ -57,6 +57,17 @@ uv run pytest
 - 초기화를 다시 실행해도 기존 Subject·Document가 유지되고, 엔진을 다시 연결해도 조회되어야 합니다.
 - `DocumentRead`는 `stored_name`을 노출하지 않고, `uploaded_at`을 `Z`로 끝나는 UTC ISO 8601로, `page_count`의 `null`을 그대로 직렬화해야 합니다.
 
+### Page Repository (`backend/tests/test_page_repository.py`)
+
+- 임시 SQLite 파일에 `init_db()`로 테이블을 만들고 개발용 DB를 사용하지 않습니다.
+- `create_page`는 ID가 있는 Page를 반환하고 자체적으로 commit하지 않아야 합니다. 호출자가 rollback하면 저장되지 않아야 합니다.
+- `text`의 `NULL`(텍스트를 얻기 전)과 빈 문자열(텍스트 없음)이 저장 후에도 구분되어야 합니다.
+- `get_page`는 자료 ID와 페이지 번호로 찾고 없으면 `None`을, `list_pages_by_document`는 자료별로 분리된 페이지 번호 오름차순 목록을, 페이지가 없으면 `[]`를 반환해야 합니다.
+- 같은 자료의 페이지 번호 중복, 0·음수 페이지 번호, 없는 자료 ID는 DB 제약으로 거부되어야 합니다. 다른 자료의 같은 페이지 번호는 허용합니다.
+- Page가 있는 Document를 단독으로 지우면 FK로 거부되고, `delete_pages_by_document`는 해당 자료의 페이지만 지워야 합니다.
+- 호출자가 commit한 페이지는 엔진을 다시 연결해도 조회되어야 합니다.
+- `pages` 테이블이 없는 #28 이전 스키마의 DB(과목·자료·메모 포함)에 `init_db`를 두 번 실행하면 `pages`가 추가되고 기존 행이 유지되어야 하며, 이후 추가한 페이지도 재실행 후 유지되어야 합니다.
+
 ### PDF 업로드 서비스 (`backend/tests/test_document_service.py`)
 
 - 임시 SQLite와 `tmp_path` 아래 업로드 디렉터리를 사용하며 개발용 DB·`backend/uploads`를 건드리지 않습니다. 테스트 PDF는 `backend/tests/pdf_samples.py`가 코드로 생성합니다(텍스트 PDF, 이미지만 있는 스캔 PDF, 여러 페이지, 암호화, 0페이지).
@@ -98,6 +109,7 @@ uv run pytest
 - 임시 DB·업로드 디렉터리에서 과목·자료 삭제의 204, 없는 대상 404, 잘못된 ID 422, 자료가 있는 과목 409와 DELETE CORS를 확인합니다.
 - 새 엔진으로 다시 연결해 삭제 영속성과 다른 과목·자료 보존, 원본이 이미 없는 자료의 삭제를 확인합니다.
 - DB flush·commit, 파일 이동·제거·복원 실패와 복구 로그, 안전하지 않은 저장 경로·일반 파일이 아닌 원본 거부를 확인합니다.
+- 페이지가 있는 자료와 과목을 삭제하면 해당 Page가 함께 지워지고 다른 과목 자료의 Page는 유지되어야 합니다.
 - 동시 삭제 직렬화, 복원 경로가 점유된 경우의 보존과 외래 키에 의한 고아 자료 방지를 확인합니다. DB와 파일은 단일 원자적 트랜잭션이 아니며, 복구 및 수동 정리 절차는 [API 문서](API.md)를 따릅니다.
 - Windows Python 3.14.7에서 `uv sync --locked` 성공 후 `uv run pytest` 156개가 통과했습니다(기존 Starlette/httpx 사용 중단 예정 경고 1건).
 
