@@ -203,6 +203,14 @@ docker compose run --rm --no-deps frontend npm run lint
 6. `BACKEND_PORT`와 `FRONTEND_PORT`를 다른 값으로 지정해 `docker compose config`의 포트와 기본 `VITE_API_BASE_URL`을 확인합니다. 명시적인 API URL도 반영되는지 확인합니다.
 7. 검증한 커밋, Docker·Compose·Python·Node 버전과 실행 결과를 기록합니다. 검증용 프로젝트에 대해서만 `docker compose down --volumes`로 데이터를 정리합니다. Windows·macOS에서 직접 확인하지 않았다면 해당 검증은 미수행으로 보고합니다.
 
+## 직접 검증 기록: Page 테이블 업그레이드 (2026-11-13)
+
+- Windows 11, Docker Desktop(Engine 29.9.2), Compose 5.6.1, 검증 프로젝트 `mb028check`(backend만 실행)에서 확인했습니다.
+- `main`(84cec11)으로 새 볼륨에서 `up --build -d --wait` 후 과목 생성, PDF 업로드(page_count 1), 1페이지 메모 생성. 테이블은 `documents`·`notes`·`subjects`이고 `pages`가 없음을 확인했습니다.
+- 같은 볼륨에서 `feat/028-page-model`로 `down` 후 `up --build -d --wait`. 시작 시 `init_db`가 `pages` 테이블을 제약(`uq_pages_document_page_number`, `ck_pages_page_number_positive`, `documents` FK)과 함께 추가했고, 기존 과목·자료·메모 행과 원본 PDF 바이트(SHA-256)가 그대로 유지됐습니다.
+- 페이지 1행을 넣고 `restart backend` 후에도 모든 행이 유지됐습니다. 이어서 `DELETE /documents/1`이 204를 반환하고 자료·메모·페이지 행과 `/data/uploads`의 원본이 함께 삭제됐습니다.
+- 컨테이너 안 pytest, frontend 연동, macOS 실행은 수행하지 않았습니다. 검증 후 `mb028check` 프로젝트만 `down --volumes`로 정리했습니다.
+
 ## 직접 검증 기록: PDF 업로드 (2026-11-01)
 
 - Windows 11, Docker Desktop(Engine 29.9.2), Compose 5.6.1, 검증 프로젝트 `issue17-check`, `BACKEND_PORT=18000`, `FRONTEND_PORT=15173`에서 확인했습니다.
