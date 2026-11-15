@@ -9,3 +9,13 @@ export type MockDocument = {
   file_size_bytes: number
   page_count: number | null
 }
+
+export type Note = {
+  id: number
+  document_id: number
+  page_number: number | null
+  title: string
+  content: string
+  created_at: string
+  updated_at: string
+}

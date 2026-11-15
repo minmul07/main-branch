@@ -189,3 +189,9 @@ button:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visibl
 .notes-panel-close { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #62666b; font-size: 22px; }
 .notes-panel-close:hover { background: #f0eeee; }
 .notes-empty { margin: 0; color: #62666b; }
+.notes-add { align-self: flex-start; margin-bottom: 12px; padding: 8px 12px; border: 0; border-radius: 6px; background: #a3d3ff; }
+.notes-add:hover:not(:disabled) { background: #8bc7ff; }
+.notes-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.note-item { padding: 12px; border: 1px solid #dedcdc; border-radius: 12px; }
+.note-item h4 { margin: 0 0 4px; font-size: 15px; font-weight: 600; }
+.note-item p { margin: 0; color: #62666b; white-space: pre-wrap; overflow-wrap: anywhere; }
