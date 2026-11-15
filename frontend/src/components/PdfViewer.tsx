@@ -66,8 +66,7 @@ function PdfPage({ pdf, pageNumber, root, scale, defaultSize }: { pdf: PDFDocume
   </div>
 }
 
-export default function PdfViewer({ documentId }: { documentId: number }) {
-  const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null)
+export default function PdfViewer({ documentId, onPageChange }: { documentId: number; onPageChange?: (page: number) => void }) {  const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null)
   const [pageNumber, setPageNumber] = useState(1)
   const [error, setError] = useState(false)
   const [attempt, setAttempt] = useState(0)
@@ -124,6 +123,8 @@ export default function PdfViewer({ documentId }: { documentId: number }) {
     return () => { active = false }
   }, [pdf, pageNumber])
 
+  useEffect(() => { onPageChange?.(pageNumber) }, [pageNumber, onPageChange])
+  
   useEffect(() => {
     if (!scrollArea) return
     const measure = () => setAreaSize({ width: scrollArea.clientWidth, height: scrollArea.clientHeight })
