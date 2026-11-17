@@ -18,6 +18,7 @@ from backend.app.repositories.page import (
     delete_pages_by_document,
     get_page,
     list_pages_by_document,
+    save_page,
 )
 from backend.app.repositories.subject import create_subject
 
@@ -248,3 +249,41 @@ def test_init_db_upgrades_existing_database_without_pages(tmp_path: Path) -> Non
             assert get_page(session, document_id, 1).text == "트리"
     finally:
         engine.dispose()
+
+
+def test_save_page_creates_without_commit_and_updates_existing_in_place(
+    engine: Engine, document_ids: list[int]
+) -> None:
+    document_id = document_ids[0]
+    with Session(engine) as session:
+        created = save_page(session, document_id=document_id, page_number=1, text=None)
+        created_id = created.id
+        assert created_id is not None
+        # flush만 수행하고 자체적으로 commit하지 않는다.
+        assert count_pages(engine) == 0
+        session.commit()
+
+    with Session(engine) as session:
+        updated = save_page(session, document_id=document_id, page_number=1, text="텍스트")
+        assert updated.id == created_id
+        assert updated.text == "텍스트"
+        session.commit()
+
+    with Session(engine) as session:
+        updated = save_page(session, document_id=document_id, page_number=1, text="이전")
+        assert updated.id == created_id
+        assert updated.text == "이전"
+        updated = save_page(session, document_id=document_id, page_number=1, text="새 텍스트")
+        assert updated.id == created_id
+        assert updated.text == "새 텍스트"
+        updated = save_page(session, document_id=document_id, page_number=1, text="")
+        assert updated.id == created_id
+        assert updated.text == ""
+        session.commit()
+
+    assert count_pages(engine) == 1
+    with Session(engine) as session:
+        page = get_page(session, document_id, 1)
+        assert page is not None
+        assert page.id == created_id
+        assert page.text == ""

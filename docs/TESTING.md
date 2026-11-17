@@ -61,12 +61,24 @@ uv run pytest
 
 - 임시 SQLite 파일에 `init_db()`로 테이블을 만들고 개발용 DB를 사용하지 않습니다.
 - `create_page`는 ID가 있는 Page를 반환하고 자체적으로 commit하지 않아야 합니다. 호출자가 rollback하면 저장되지 않아야 합니다.
+- `save_page`는 없는 페이지면 새 Page를 생성해 `flush`하고 자체적으로 commit하지 않으며, 이미 있는 `(document_id, page_number)`면 기존 `Page.id`를 유지한 채 `text`만 갱신해야 합니다.
 - `text`의 `NULL`(텍스트를 얻기 전)과 빈 문자열(텍스트 없음)이 저장 후에도 구분되어야 합니다.
 - `get_page`는 자료 ID와 페이지 번호로 찾고 없으면 `None`을, `list_pages_by_document`는 자료별로 분리된 페이지 번호 오름차순 목록을, 페이지가 없으면 `[]`를 반환해야 합니다.
 - 같은 자료의 페이지 번호 중복, 0·음수 페이지 번호, 없는 자료 ID는 DB 제약으로 거부되어야 합니다. 다른 자료의 같은 페이지 번호는 허용합니다.
 - Page가 있는 Document를 단독으로 지우면 FK로 거부되고, `delete_pages_by_document`는 해당 자료의 페이지만 지워야 합니다.
 - 호출자가 commit한 페이지는 엔진을 다시 연결해도 조회되어야 합니다.
 - `pages` 테이블이 없는 #28 이전 스키마의 DB(과목·자료·메모 포함)에 `init_db`를 두 번 실행하면 `pages`가 추가되고 기존 행이 유지되어야 하며, 이후 추가한 페이지도 재실행 후 유지되어야 합니다.
+
+### 페이지 텍스트 추출 (`backend/tests/test_text_extraction.py`)
+
+- 임시 SQLite와 `tmp_path` 아래 업로드 디렉터리를 사용하며 개발용 DB·`backend/uploads`를 건드리지 않습니다. 다중 페이지 텍스트·빈 페이지·스캔 이미지 혼합 PDF는 `backend/tests/pdf_samples.py`의 `multi_page_pdf` 등으로 생성합니다.
+- 여러 페이지 텍스트 PDF에서 물리 페이지 번호(`1..N`)와 저장된 `text`가 일치하고, 엔진을 다시 연결해도 유지되어야 합니다. 업로드 직후에는 `Page`가 자동 생성되지 않아 기존 업로드 계약을 유지합니다.
+- 빈 페이지·스캔 페이지·공백만 있는 페이지와 이들이 섞인 혼합 PDF에서 추출 완료 후 `text`는 `""`로 저장되어 미추출(`None`)과 구분되고(`is_page_extracted` 참, `has_page_text` 거짓), NUL(`\x00`) 제거 정규화가 적용되어야 합니다.
+- 없는 자료 ID(`DocumentNotFoundError`), 누락된 원본 파일(`DocumentFileNotFoundError`), 비PDF·손상·암호화·0페이지·`Document.page_count` 불일치(`InvalidPdfFileError`)는 실패하고 페이지를 저장하지 않아야 합니다.
+- 중간 페이지 추출 예외나 DB 저장·`commit` 실패 시 전체 롤백되어 일부 페이지만 남지 않아야 합니다.
+- 반복 실행 시 기존 `Page.id`를 유지하며(사전에 `text=None`으로 존재하는 부분 행 포함), 이미 커밋된 유효한 `Page`가 있는 자료의 재실행이 실패해도 기존 유효 결과가 유실되지 않아야 합니다.
+- `Document.page_count`가 `None`이었던 자료를 추출하면 실제 페이지 수로 갱신되고, 다른 자료·메모는 보존되며, 추출된 `Page`가 있는 자료는 `deletion.delete_document`로 정상 삭제되어야 합니다.
+- Windows Python 3.14.7에서 `.venv\Scripts\pytest.exe` 231개가 통과했습니다(기존 Starlette/httpx 사용 중단 예정 경고 1건).
 
 ### PDF 업로드 서비스 (`backend/tests/test_document_service.py`)
 
