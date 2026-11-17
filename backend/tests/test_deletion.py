@@ -16,6 +16,7 @@ from backend.app.main import app
 from backend.app.models.document import Document
 from backend.app.models.subject import Subject
 from backend.app.repositories import document as document_repository
+from backend.app.repositories import page as page_repository
 from backend.app.routers.documents import UploadSettings, get_upload_settings
 from backend.tests.pdf_samples import text_pdf
 
@@ -373,3 +374,20 @@ def test_foreign_keys_prevent_orphans_even_outside_delete_service(
         ))
         with raises(IntegrityError):
             session.commit()
+
+
+def test_delete_removes_pages_and_keeps_other_documents_pages(
+    client: TestClient, temp_database_engine: Engine,
+) -> None:
+    target, other = subject(client), subject(client)
+    first, second, kept = document(client, target), document(client, target), document(client, other)
+    with Session(temp_database_engine) as session:
+        for did in (first, second, kept):
+            page_repository.create_page(session, document_id=did, page_number=1, text="")
+        session.commit()
+    assert client.delete(f"/documents/{first}").status_code == 204
+    assert client.delete(f"/subjects/{target}", params={"confirmed_name": "운영체제"}).status_code == 204
+    with Session(temp_database_engine) as session:
+        assert page_repository.list_pages_by_document(session, first) == []
+        assert page_repository.list_pages_by_document(session, second) == []
+        assert [p.page_number for p in page_repository.list_pages_by_document(session, kept)] == [1]

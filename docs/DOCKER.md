@@ -69,7 +69,7 @@ backend 컨테이너의 `UPLOAD_DIR`은 `/data/uploads`로, SQLite와 같은 `ba
 
 ### 테이블 초기화
 
-Docker 컨테이너는 시작할 때마다 `uv run --locked python -m backend.app.init_db`를 실행한 뒤 Uvicorn을 시작합니다. `subjects`와 `documents` 테이블이 함께 준비되며, 기존 볼륨에 `documents` 테이블이 없으면 다음 시작 때 추가됩니다. 초기화 명령은 `create_all`을 사용하므로 다시 실행해도 기존 테이블과 행을 보존합니다. 이미지 빌드나 Python import 시에는 실행하지 않습니다. 초기화에 실패하면 명령이 실패 상태로 종료되어 Uvicorn은 시작되지 않으며, 원인은 backend 컨테이너 로그에서 확인할 수 있습니다.
+Docker 컨테이너는 시작할 때마다 `uv run --locked python -m backend.app.init_db`를 실행한 뒤 Uvicorn을 시작합니다. `subjects`·`documents`·`notes`·`pages` 테이블이 함께 준비되며, 기존 볼륨에 없는 테이블(예: #28에서 추가한 `pages`)은 다음 시작 때 추가됩니다. 초기화 명령은 `create_all`을 사용하므로 다시 실행해도 기존 테이블과 행을 보존합니다. 이미지 빌드나 Python import 시에는 실행하지 않습니다. 초기화에 실패하면 명령이 실패 상태로 종료되어 Uvicorn은 시작되지 않으며, 원인은 backend 컨테이너 로그에서 확인할 수 있습니다.
 
 Docker에서 초기화만 명시적으로 실행하려면 저장소 루트에서 다음 명령을 사용합니다. 이 명령은 이미지의 기본 시작 명령을 대체하므로 Uvicorn을 시작하지 않습니다.
 

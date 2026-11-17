@@ -6,7 +6,7 @@
 
 핵심 흐름은 **과목·주차별 PDF 등록 → 텍스트 추출/OCR → 페이지 단위 검색 → 원문 페이지 확인 → 메모 작성**이다. 한 사람이 자기 컴퓨터에서 브라우저로 사용하는 로컬 웹 앱을 기준으로 한다. OCR과 실패 재시도는 P0 범위에 포함한다.
 
-현재 저장소에는 React 기본 화면, FastAPI 기본 서버와 SQLite 연결, Subject 모델·Repository와 Subject 생성·목록 API, Document 모델·Repository·업로드 서비스와 `/documents` API가 있다. 그 밖의 업무 기능은 구현 전이다. API 계약은 [API.md](API.md), 실행 환경과 검증 기준은 [DOCKER.md](DOCKER.md)와 [TESTING.md](TESTING.md)를 참고한다.
+현재 저장소에는 React 기본 화면, FastAPI 기본 서버와 SQLite 연결, Subject 모델·Repository와 Subject 생성·목록 API, Document 모델·Repository·업로드 서비스와 `/documents` API, Page 모델·Repository가 있다. 그 밖의 업무 기능은 구현 전이다. API 계약은 [API.md](API.md), 실행 환경과 검증 기준은 [DOCKER.md](DOCKER.md)와 [TESTING.md](TESTING.md)를 참고한다.
 
 ## 기본 구조
 
@@ -148,16 +148,48 @@ Subject
 - 남은 파일은 서버를 멈춘 상태에서 정리한다. `.upload-*.tmp`는 언제나 삭제해도 되고, 그 밖의 일반 업로드 파일은 `documents.stored_name`에 없는 경우에만 삭제한다. `.delete-*.pdf` 격리 파일은 이 기준으로 제거하지 않고 [삭제 복구 정책](API.md#파일-실패와-복구)에 따라 Document ID를 대조하여 복원하거나 제거한다. 자동 정리 daemon은 이번 범위에서 만들지 않는다.
 - pypdf는 검증할 때 파일을 메모리로 읽는다. 크기 상한을 먼저 확인하므로 사용량은 `MAX_UPLOAD_SIZE_BYTES` 이하로 제한된다.
 
+## 구현된 Page 데이터 계층
+
+#28에서 Document에 속하는 PDF 물리 페이지와 페이지별 텍스트를 저장할 모델·Repository를 추가했다. 텍스트 추출(#29), 처리 상태(#30), OCR(#31), 검색 색인(#32)이 이 계층을 공유한다.
+
+| 위치 | 책임 |
+| --- | --- |
+| `backend/app/models/page.py` | `Page` 모델. `pages` 테이블에 아래 필드를 둔다. |
+| `backend/app/repositories/page.py` | `create_page(session, *, document_id, page_number, text=None)`는 `flush`로 ID를 확보한 객체를 반환하고 commit하지 않는다. `get_page(session, document_id, page_number)`는 없으면 `None`, `list_pages_by_document(session, document_id)`는 페이지 번호 오름차순 목록(없으면 `[]`)을 반환한다. `delete_pages_by_document(session, document_id)`는 자료의 페이지를 모두 지우고 commit하지 않는다. |
+| `backend/app/init_db.py` | `Page`를 등록해 `create_all` 실행 시 기존 테이블·행을 유지한 채 `pages` 테이블을 추가한다. |
+
+| 필드 | 타입·제약 | 의미 |
+| --- | --- | --- |
+| `id` | 정수 PK, 자동 생성 | Page ID. 검색 색인 등이 페이지를 가리킬 때 사용할 수 있다. |
+| `document_id` | 정수, `documents.id` FK | 소속 자료 |
+| `page_number` | 정수, `> 0` | 원본 PDF의 물리 페이지 순서. 1부터 시작한다. |
+| `text` | `Text` 또는 `NULL` | 페이지 텍스트. 의미는 아래와 같다. |
+
+- `(document_id, page_number)`에 unique 제약(`uq_pages_document_page_number`)을 두어 같은 자료의 페이지 번호 중복을 DB에서 막는다. 이 제약의 인덱스가 자료별 조회에도 쓰이므로 `document_id` 단독 인덱스는 두지 않는다. 다른 자료끼리는 같은 페이지 번호를 쓸 수 있다.
+- `text`가 `NULL`이면 아직 텍스트를 얻지 않은(추출·OCR 전) 페이지이고, 빈 문자열이면 처리했지만 텍스트가 없는 페이지다. 빈 문자열이 곧 OCR 대상이라는 뜻은 아니다. OCR 후보 판별과 실패·진행 상태는 #30에서 정하며, 상태를 Page에 둘지 별도 필드로 둘지도 그때 합의한다.
+- `page_number`가 `Document.page_count` 이하인지는 DB 제약으로 강제하지 않는다. 페이지를 만드는 추출 작업(#29)이 원본 페이지 수를 기준으로 생성한다.
+- Repository는 전달받은 Session만 사용하고 commit·rollback은 호출하는 서비스가 담당한다. 같은 페이지를 다시 처리할 때 중복 생성하지 않도록 기존 행을 확인하거나 지운 뒤 다시 만드는 규칙은 #29에서 정한다.
+
+### Note·삭제·검색과의 경계
+
+- `Note`는 `document_id`와 `page_number`로 페이지를 가리키며 `pages.id` FK를 갖지 않는다. 텍스트 추출 전에도 원문 페이지에 메모를 쓸 수 있도록 기존 Note 구조를 유지했다. 두 테이블은 `(document_id, page_number)`로 연결된다.
+- FK를 강제하므로 Page가 있는 Document는 Page를 먼저 지워야 삭제할 수 있다. `services/deletion.py`는 자료마다 Note → Page → Document 순으로 같은 트랜잭션에서 지우고, 실패하면 모두 rollback한다. DB cascade는 추가하지 않았다.
+- `delete_pages_by_document`는 SQL 일괄 삭제라 ORM 이벤트가 실행되지 않는다. FTS5 색인(#32)은 SQLite trigger나 삭제 서비스에서의 명시적 정리로 동기화해야 한다.
+
+### 기존 DB 업그레이드
+
+`pages`는 새 테이블이고 기존 `subjects`·`documents`·`notes` 테이블의 컬럼은 바꾸지 않았다. 따라서 별도 마이그레이션 도구 없이 `init_db`(`create_all`)를 실행하면 기존 행과 PDF 파일을 그대로 둔 채 `pages` 테이블만 추가된다. 재실행해도 안전하다. Docker 컨테이너는 시작할 때 자동으로 실행하고, Docker 없이 실행할 때는 저장소 루트에서 `uv run python -m backend.app.init_db`를 실행한다. 기존 테이블의 컬럼을 바꿔야 하는 변경이 생기면 `create_all`로는 반영되지 않으므로 별도 업그레이드 절차가 필요하다.
+
 ## Document 후속 처리 경계
 
 #17은 PDF 원본 저장과 메타데이터 등록·조회까지다. 아래는 구현하지 않았으며, 후속 작업은 다음 연결 지점을 사용한다.
 
 | 후속 작업 | 현재 상태와 연결 지점 |
 | --- | --- |
-| 페이지 텍스트 추출·`Page` 모델 | 미구현. `get_document_file_path()`로 원본을 찾고 pypdf로 추출한다. 업로드 `201`은 추출 완료를 뜻하지 않는다. |
+| 페이지 텍스트 추출 | 미구현(#29). `get_document_file_path()`로 원본을 찾고 pypdf로 추출해 [Page 데이터 계층](#구현된-page-데이터-계층)에 저장한다. 업로드 `201`은 추출 완료를 뜻하지 않는다. |
 | OCR·처리 상태·재시도 | 미구현. 처리 상태 필드나 queued 상태를 만들지 않았다. 비동기 처리를 도입하면 `page_count`의 `NULL`(확인 전)과 상태 값을 함께 설계한다. |
 | FTS5 검색 | 미구현. Page 텍스트가 생긴 뒤 색인한다. |
-| Subject·Document 삭제 | `services/deletion.py`가 `BEGIN IMMEDIATE`로 삭제를 직렬화하고 Repository의 단건 삭제·flush 및 commit/rollback을 관리한다. 과목은 자료가 있으면 409로 거부한다. 자료는 원본을 격리한 뒤 행을 commit하고 격리 파일을 제거한다. 실패·강제 종료·수동 복구 정책은 [API.md](API.md#파일-실패와-복구)를 따른다. Page·Note 모델 도입 시 연관 삭제 정책을 확장한다. |
+| Subject·Document 삭제 | `services/deletion.py`가 `BEGIN IMMEDIATE`로 삭제를 직렬화하고 Repository의 단건 삭제·flush 및 commit/rollback을 관리한다. 과목은 자료가 있으면 409로 거부한다. 자료는 원본을 격리한 뒤 행을 commit하고 격리 파일을 제거한다. 실패·강제 종료·수동 복구 정책은 [API.md](API.md#파일-실패와-복구)를 따른다. 자료마다 Note → Page → Document 순으로 같은 트랜잭션에서 삭제한다. |
 | frontend 연결·PDF.js 뷰어 | 미구현(#19, #22). frontend는 `/documents` API를 호출하고 PDF.js는 `GET /documents/{id}/file`을 읽는다. CORS는 `CORS_ALLOWED_ORIGINS`로 허용하고 `Content-Disposition`을 노출한다. |
 | 중복 업로드 판별 | 하지 않는다. 같은 파일도 별도 Document로 저장한다. |
 | 남은 파일 자동 정리 | 하지 않는다. 강제 종료 시 남은 파일의 수동 정리 기준은 위 [한계와 정리 방침](#한계와-정리-방침)을 따른다. |
