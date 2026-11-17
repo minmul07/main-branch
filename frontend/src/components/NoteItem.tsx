@@ -2,9 +2,13 @@ import { useState } from 'react'
 import { updateNote } from '../notesApi'
 import type { Note } from '../types'
 
-type NoteItemProps = { note: Note; onSaved: (note: Note) => void }
+type NoteItemProps = {
+  note: Note
+  onSaved: (note: Note) => void
+  onDelete: (note: Note, trigger: HTMLElement) => void
+}
 
-export default function NoteItem({ note, onSaved }: NoteItemProps) {
+export default function NoteItem({ note, onSaved, onDelete }: NoteItemProps) {
   const [editing, setEditing] = useState(false)
   const [title, setTitle] = useState(note.title)
   const [content, setContent] = useState(note.content)
@@ -35,7 +39,10 @@ export default function NoteItem({ note, onSaved }: NoteItemProps) {
       <li className="note-item">
         <div className="note-item-header">
           <h4>{note.title}</h4>
-          <button type="button" aria-label={`${note.title} 수정`} onClick={startEdit}>수정</button>
+          <div className="note-item-tools">
+            <button type="button" aria-label={`${note.title} 수정`} onClick={startEdit}>수정</button>
+            <button type="button" aria-label={`${note.title} 삭제`} onClick={(event) => onDelete(note, event.currentTarget)}>삭제</button>
+          </div>
         </div>
         <p>{note.content}</p>
       </li>

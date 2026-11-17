@@ -202,3 +202,4 @@ button:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visibl
 .note-item-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .note-item button { padding: 4px 10px; border: 0; border-radius: 6px; background: #f0eeee; }
 .note-item button:hover:not(:disabled) { background: #dedcdc; }
+.note-item-tools { display: flex; flex: none; gap: 4px; }
