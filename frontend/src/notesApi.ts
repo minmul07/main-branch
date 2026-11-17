@@ -16,3 +16,18 @@ export async function createNote(documentId: number, page: number): Promise<Note
   if (!response.ok) throw new Error(`HTTP ${response.status}`)
   return response.json()
 }
+
+export async function updateNote(id: number, changes: { title?: string; content?: string }): Promise<Note> {
+  const response = await fetch(`${API_BASE_URL}/notes/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(changes),
+  })
+  if (!response.ok) throw new Error(`HTTP ${response.status}`)
+  return response.json()
+}
+
+export async function deleteNote(id: number): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/notes/${id}`, { method: 'DELETE' })
+  if (response.status !== 204) throw new Error(`HTTP ${response.status}`)
+}

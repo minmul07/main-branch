@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { createNote, listNotes } from '../notesApi'
+import NoteItem from './NoteItem'
 import type { Note } from '../types'
 
 type NotesPanelProps = { documentId: number; page: number; onClose: () => void }
@@ -43,7 +44,7 @@ export default function NotesPanel({ documentId, page, onClose }: NotesPanelProp
       {state === 'loading' && <p role="status">불러오는 중...</p>}
       {state === 'error' && <div role="alert">메모를 불러오지 못했습니다. <button type="button" onClick={() => { setState('loading'); setAttempt((n) => n + 1) }}>다시 시도</button></div>}
       {state === 'ready' && notes.length === 0 && <p className="notes-empty">메모가 없습니다.</p>}
-      {state === 'ready' && <ul className="notes-list">{notes.map((note) => <li key={note.id} className="note-item"><h4>{note.title}</h4><p>{note.content}</p></li>)}</ul>}
+      {state === 'ready' && <ul className="notes-list">{notes.map((note) => <NoteItem key={note.id} note={note} onSaved={(saved) => setNotes((items) => items.map((item) => item.id === saved.id ? saved : item))} />)}</ul>}
     </aside>
   )
 }
