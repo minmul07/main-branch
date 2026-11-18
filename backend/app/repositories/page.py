@@ -13,6 +13,20 @@ def create_page(
     return page
 
 
+def save_page(
+    session: Session, *, document_id: int, page_number: int, text: str | None = None
+) -> Page:
+    """페이지를 생성하거나 기존 페이지의 텍스트를 갱신한 뒤 flush한다."""
+    page = get_page(session, document_id, page_number)
+    if page is None:
+        return create_page(
+            session, document_id=document_id, page_number=page_number, text=text
+        )
+    page.text = text
+    session.flush()
+    return page
+
+
 def get_page(session: Session, document_id: int, page_number: int) -> Page | None:
     return session.scalar(
         select(Page).where(Page.document_id == document_id, Page.page_number == page_number)
@@ -30,3 +44,11 @@ def list_pages_by_document(session: Session, document_id: int) -> list[Page]:
 def delete_pages_by_document(session: Session, document_id: int) -> None:
     # 자료를 삭제하기 전에 그 자료의 페이지를 모두 지운다.
     session.execute(delete(Page).where(Page.document_id == document_id))
+
+
+def delete_pages_beyond_count(
+    session: Session, *, document_id: int, page_count: int
+) -> None:
+    session.execute(
+        delete(Page).where(Page.document_id == document_id, Page.page_number > page_count)
+    )

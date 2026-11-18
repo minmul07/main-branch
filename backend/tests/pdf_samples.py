@@ -61,6 +61,49 @@ def scanned_pdf() -> bytes:
     )
 
 
+def _escape_pdf_literal(text: str) -> bytes:
+    escaped = text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+    return escaped.encode("ascii")
+
+
+def multi_page_pdf(pages: list[str | None]) -> bytes:
+    """텍스트(str)·빈 문자열("")·스캔 이미지(None) 페이지를 조합한 다중 페이지 PDF."""
+    objects: list[bytes] = [
+        b"",  # 1: Catalog (목록 구성 후 채움)
+        b"",  # 2: Pages
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",  # 3: Font
+        stream_object(  # 4: Image XObject
+            b"/Type /XObject /Subtype /Image /Width 2 /Height 2 "
+            b"/ColorSpace /DeviceGray /BitsPerComponent 8",
+            bytes([0, 255, 255, 0]),
+        ),
+    ]
+    kid_refs: list[bytes] = []
+    for spec in pages:
+        page_obj_num = len(objects) + 1
+        content_obj_num = page_obj_num + 1
+        kid_refs.append(b"%d 0 R" % page_obj_num)
+        if spec is None:
+            resources = b"<< /XObject << /Im1 4 0 R >> >>"
+            content = b"q 612 0 0 792 0 0 cm /Im1 Do Q"
+        else:
+            resources = b"<< /Font << /F1 3 0 R >> >>"
+            content = (
+                b"BT /F1 24 Tf 72 720 Td (" + _escape_pdf_literal(spec) + b") Tj ET"
+                if spec != ""
+                else b""
+            )
+        objects.append(
+            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+            b"/Resources " + resources + b" /Contents %d 0 R >>" % content_obj_num
+        )
+        objects.append(stream_object(b"", content))
+
+    objects[0] = b"<< /Type /Catalog /Pages 2 0 R >>"
+    objects[1] = b"<< /Type /Pages /Kids [" + b" ".join(kid_refs) + b"] /Count %d >>" % len(pages)
+    return build_pdf(objects)
+
+
 def blank_pdf(page_count: int = 1) -> bytes:
     writer = PdfWriter()
     for _ in range(page_count):
