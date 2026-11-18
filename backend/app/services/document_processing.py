@@ -1,4 +1,5 @@
 import logging
+from io import BytesIO
 from pathlib import Path
 from threading import Event
 
@@ -12,6 +13,7 @@ from backend.app.models.document_processing import (
     ProcessingErrorCode,
     ProcessingStatus,
 )
+from backend.app.services.deletion import original_file_lock
 from backend.app.services.documents import get_document_file_path
 from backend.app.services.text_extraction import (
     InvalidPdfFileError,
@@ -107,10 +109,12 @@ def _finish_processing(
 
 def process_document(engine: Engine, document: Document, upload_dir: Path) -> None:
     try:
-        path = get_document_file_path(upload_dir, document)
-        if path is None:
-            raise FileNotFoundError
-        results = read_pdf_page_results(path)
+        with original_file_lock:
+            path = get_document_file_path(upload_dir, document)
+            if path is None:
+                raise FileNotFoundError
+            original = BytesIO(path.read_bytes())
+        results = read_pdf_page_results(original)
         _finish_processing(engine, document, results)
         return
     except FileNotFoundError:

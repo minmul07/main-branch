@@ -3,6 +3,7 @@
 import logging
 from pathlib import Path
 import stat
+from threading import Lock
 from uuid import uuid4
 
 from sqlalchemy import text
@@ -14,6 +15,8 @@ from backend.app.repositories import page as page_repository
 from backend.app.repositories import subject as subject_repository
 
 logger = logging.getLogger(__name__)
+# SQLite 롤백으로 쓰기 잠금이 해제된 뒤에도 원본 복원이 끝날 때까지 읽기를 막는다.
+original_file_lock = Lock()
 
 
 class TargetNotFoundError(Exception):
@@ -30,11 +33,13 @@ class DeletionError(Exception):
 
 def delete_subject(session: Session, subject_id: int, upload_dir: Path | None = None,
                    confirmed_name: str | None = None) -> None:
-    _delete(session, upload_dir, subject_id=subject_id, confirmed_name=confirmed_name)
+    with original_file_lock:
+        _delete(session, upload_dir, subject_id=subject_id, confirmed_name=confirmed_name)
 
 
 def delete_document(session: Session, document_id: int, upload_dir: Path) -> None:
-    _delete(session, upload_dir, document_id=document_id)
+    with original_file_lock:
+        _delete(session, upload_dir, document_id=document_id)
 
 
 def _delete(session: Session, upload_dir: Path | None, *, document_id: int | None = None,

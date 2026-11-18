@@ -115,7 +115,7 @@ P0 MVP에서 frontend와 backend가 같은 경로와 데이터 의미를 사용�
 - `page_kinds`는 `completed`에서 물리 페이지 순서대로 반환하며 나머지 상태는 `null`이다. `image`가 OCR 후보이고 `mixed`와 `unknown`은 검토 대상이다. 분류 기준과 한계는 [PDF 처리 문서](PDF_PROCESSING.md#페이지-종류)를 참고한다.
 - `error_code`는 `failed`에서만 설정된다. `original_missing`은 원본 없음, `invalid_pdf`는 PDF 파싱·페이지 추출 또는 페이지 수 불일치, `processing_error`는 기타 파일·저장 처리 오류, `interrupted`는 서버가 멈추면서 중단된 작업을 뜻한다.
 
-`POST /documents/{id}/processing/retry`는 본문 없이 `failed` 작업을 다시 대기열에 등록한다. 응답은 `202`이며 `document_id`, `status: "pending"`, `error_code: null`, `page_kinds: null`을 반환한다. 이후 GET 응답은 실제 현재 상태를 반환한다. `pending`·`processing`·`completed`에서 요청하면 `409`다. 두 API 모두 대상 자료가 없으면 `404`, 잘못된 ID는 `422`, DB 오류는 `500`으로 응답한다.
+`POST /documents/{id}/processing/retry`는 본문 없이 `failed` 작업을 다시 대기열에 등록한다. 응답은 `202`이며 `document_id`, `status: "pending"`, `error_code: null`, `page_kinds: null`을 반환한다. 이후 GET 응답은 실제 현재 상태를 반환한다. `pending`·`processing`·`completed`에서 요청하면 `409`다. 두 API 모두 `1`부터 SQLite의 부호 있는 64비트 정수 최댓값(`9223372036854775807`)까지의 정수 ID를 받는다. 대상 자료가 없으면 `404`, 잘못된 형식이나 범위를 벗어난 ID는 `422`, DB 오류는 `500`으로 응답한다.
 
 ### 삭제 API 확정 계약 (#25)
 
@@ -129,7 +129,7 @@ P0 MVP에서 frontend와 backend가 같은 경로와 데이터 의미를 사용�
 
 DB와 파일시스템은 단일 원자적 트랜잭션이 아니다. commit 이후 격리 파일 제거 실패는 `500`이지만 행은 이미 삭제되었으므로 재조회·재삭제는 `404`일 수 있다. 복원 실패도 `500`으로 보고하고 서버 로그에 원본/격리 경로를 남긴다. 강제 종료 시에도 격리 파일이 남을 수 있다. 복구는 서버를 멈추고 DB를 백업한 뒤 `.delete-{document_id}-{UUID}-{stored_name}`과 Document의 ID·`stored_name` 모두를 대조하여, 둘 다 같은 행이 있으면 그 행의 `stored_name`으로 복원(기존 파일은 덮어쓰지 않음), 같은 행이 없으면 해당 격리 파일만 제거한다. SQLite의 ID 재사용 가능성 때문에 ID만으로 복원 대상을 결정하지 않는다. 자동 스캔·자동 정리는 수행하지 않으며 디스크/권한 문제 해결 후 운영자가 복구한다. DB commit 결과가 불확실한 연결 장애는 DB를 다시 확인한 뒤 같은 절차를 따른다.
 
-삭제 작업은 `BEGIN IMMEDIATE`로 동시 삭제를 직렬화하며 SQLite 연결마다 외래 키를 활성화하여 과목 삭제와 업로드 경합으로 고아 Document가 생기지 않게 한다.
+삭제 작업은 `BEGIN IMMEDIATE`로 동시 삭제를 직렬화하며 SQLite 연결마다 외래 키를 활성화하여 과목 삭제와 업로드 경합으로 고아 Document가 생기지 않게 한다. 같은 서버 프로세스의 PDF 워커는 원본을 메모리에 읽는 동안 삭제와 공유하는 파일 잠금을 사용한다. 삭제 실패 시에는 격리된 원본 복원이 끝난 뒤 워커가 파일을 조회한다.
 
 ### CORS
 

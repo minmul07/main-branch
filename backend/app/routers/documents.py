@@ -32,6 +32,8 @@ from backend.app.services import deletion, document_processing
 
 # multipart 경계와 subject_id·week_number 필드가 차지하는 여유분.
 MULTIPART_OVERHEAD_BYTES = 64 * 1024
+MAX_SQLITE_INTEGER = 2**63 - 1
+ProcessingDocumentId = Annotated[IntegerString, PathParam(gt=0, le=MAX_SQLITE_INTEGER)]
 
 
 @dataclass(frozen=True)
@@ -160,7 +162,7 @@ def get_document(
     responses={404: {"description": "Document not found"}},
 )
 def get_document_processing(
-    document_id: Annotated[IntegerString, PathParam(gt=0)], db: Session = Depends(get_db)
+    document_id: ProcessingDocumentId, db: Session = Depends(get_db)
 ) -> DocumentProcessingRead:
     job = db.get(DocumentProcessing, document_id)
     if job is None:
@@ -178,7 +180,7 @@ def get_document_processing(
     },
 )
 def retry_document_processing(
-    document_id: Annotated[IntegerString, PathParam(gt=0)], db: Session = Depends(get_db)
+    document_id: ProcessingDocumentId, db: Session = Depends(get_db)
 ) -> DocumentProcessingRead:
     try:
         document_processing.retry_processing(db, document_id)

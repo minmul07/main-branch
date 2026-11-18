@@ -1,6 +1,7 @@
 """업로드된 PDF의 물리 페이지별 텍스트를 추출해 Page 테이블에 저장한다."""
 
 from collections.abc import Callable
+from io import BytesIO
 from pathlib import Path
 
 from pypdf import PageObject, PdfReader
@@ -62,22 +63,24 @@ def read_pdf_page_texts(path: Path) -> list[str]:
     return _read_pdf_pages(path, lambda page: normalize_extracted_text(page.extract_text()))
 
 
-def read_pdf_page_results(path: Path) -> list[tuple[str, PageKind]]:
+def read_pdf_page_results(source: Path | BytesIO) -> list[tuple[str, PageKind]]:
     """페이지별 텍스트와 OCR 후보 판별에 사용할 분류를 함께 읽는다."""
 
     def read_page(page: PageObject) -> tuple[str, PageKind]:
         text = normalize_extracted_text(page.extract_text())
         return text, _classify_page(page, text)
 
-    return _read_pdf_pages(path, read_page)
+    return _read_pdf_pages(source, read_page)
 
 
-def _read_pdf_pages[T](path: Path, read_page: Callable[[PageObject], T]) -> list[T]:
-    with path.open("rb") as file:
-        if PDF_HEADER not in file.read(PDF_HEADER_SEARCH_BYTES):
-            raise InvalidPdfFileError("file is not a PDF")
+def _read_pdf_pages[T](source: Path | BytesIO, read_page: Callable[[PageObject], T]) -> list[T]:
+    stream = BytesIO(source.read_bytes()) if isinstance(source, Path) else source
+    stream.seek(0)
+    if PDF_HEADER not in stream.read(PDF_HEADER_SEARCH_BYTES):
+        raise InvalidPdfFileError("file is not a PDF")
+    stream.seek(0)
     try:
-        reader = PdfReader(path)
+        reader = PdfReader(stream)
         if reader.is_encrypted:
             raise InvalidPdfFileError("encrypted PDF is not supported")
         if len(reader.pages) == 0:
@@ -92,7 +95,7 @@ def _read_pdf_pages[T](path: Path, read_page: Callable[[PageObject], T]) -> list
 def _classify_page(page: PageObject, text: str) -> PageKind:
     has_image = False
     has_unknown_object = False
-    has_other_content = bool(page.get("/Annots"))
+    has_other_content = "/Annots" in page and bool(page["/Annots"])
     contents = page.get_contents()
     for operands, operator in contents.operations if contents is not None else ():
         if operator == b"INLINE IMAGE":

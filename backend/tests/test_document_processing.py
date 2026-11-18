@@ -6,8 +6,8 @@ from time import monotonic, sleep
 
 from fastapi.testclient import TestClient
 from pypdf import PageObject
-from pytest import MonkeyPatch, fixture, mark
-from sqlalchemy import Engine, inspect
+from pytest import MonkeyPatch, fixture, mark, raises
+from sqlalchemy import Engine, event, inspect
 from sqlalchemy.orm import Session, sessionmaker
 
 from backend.app import config, database
@@ -86,14 +86,43 @@ def test_classifies_drawn_content_without_decoding_image_pixels(
     assert [kind for _, kind in read_pdf_page_results(path)] == [expected]
 
 
+@mark.parametrize(
+    ("annotations", "expected"),
+    [(b"[]", "blank"), (b"4 0 R", "blank"), (b"5 0 R", "unknown")],
+)
+def test_classifies_inline_and_indirect_annotation_arrays(
+    tmp_path: Path, annotations: bytes, expected: str
+) -> None:
+    path = tmp_path / "annotations.pdf"
+    path.write_bytes(build_pdf([
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Annots " + annotations + b" >>",
+        b"[]",
+        b"[6 0 R]",
+        b"<< /Type /Annot /Subtype /Text /Rect [0 0 10 10] >>",
+    ]))
+    assert read_pdf_page_results(path) == [("", expected)]
+
+
+@mark.parametrize(("document_id", "expected"), [(2**63 - 1, 404), (2**63, 422)])
+def test_processing_api_validates_sqlite_integer_range(
+    engine: Engine, document_id: int, expected: int
+) -> None:
+    client = TestClient(app)
+    url = f"/documents/{document_id}/processing"
+    assert client.get(url).status_code == expected
+    assert client.post(f"{url}/retry").status_code == expected
+
+
 def test_upload_worker_and_status_api(engine: Engine, monkeypatch: MonkeyPatch) -> None:
     started = Event()
     release = Event()
 
-    def wait_before_extraction(path: Path):
+    def wait_before_extraction(original: BytesIO):
         started.set()
         assert release.wait(10), "worker was not released"
-        return read_pdf_page_results(path)
+        return read_pdf_page_results(original)
 
     monkeypatch.setattr(document_processing, "read_pdf_page_results", wait_before_extraction)
     data = multi_page_pdf(["Alpha", None, "", "Beta"])
@@ -141,6 +170,99 @@ def test_upload_worker_and_status_api(engine: Engine, monkeypatch: MonkeyPatch) 
         assert [(page.page_number, page.text) for page in pages] == [
             (1, "Alpha"), (2, ""), (3, ""), (4, "Beta"),
         ]
+
+
+def test_processing_waits_for_original_restoration_after_rollback(
+    engine: Engine, monkeypatch: MonkeyPatch
+) -> None:
+    document = upload(engine, text_pdf("Restored"))
+    claimed = document_processing.claim_next_document(engine)
+    original = config.UPLOAD_DIR / document.stored_name
+    restoring = Event()
+    release_restoration = Event()
+    worker_started = Event()
+    lookup_started = Event()
+    rename = Path.rename
+    get_file_path = document_processing.get_document_file_path
+
+    def pause_restoration(path: Path, target: Path):
+        if target == original:
+            assert not original.exists()
+            restoring.set()
+            assert release_restoration.wait(5)
+        return rename(path, target)
+
+    def track_lookup(upload_dir: Path, claimed_document: Document):
+        lookup_started.set()
+        return get_file_path(upload_dir, claimed_document)
+
+    def fail_commit(_session: Session) -> None:
+        raise RuntimeError("forced deletion commit failure")
+
+    def delete() -> None:
+        with Session(engine) as session:
+            event.listen(session, "before_commit", fail_commit)
+            with raises(deletion.DeletionError, match="failed to delete"):
+                deletion.delete_document(session, document.id, config.UPLOAD_DIR)
+
+    def process() -> None:
+        worker_started.set()
+        document_processing.process_document(engine, claimed, config.UPLOAD_DIR)
+
+    monkeypatch.setattr(Path, "rename", pause_restoration)
+    monkeypatch.setattr(document_processing, "get_document_file_path", track_lookup)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        deleted = pool.submit(delete)
+        try:
+            assert restoring.wait(5)
+            processed = pool.submit(process)
+            assert worker_started.wait(5)
+            assert not lookup_started.wait(0.2)
+        finally:
+            release_restoration.set()
+        deleted.result(timeout=5)
+        processed.result(timeout=5)
+
+    with Session(engine) as session:
+        assert session.get(DocumentProcessing, document.id).status == "completed"
+        assert page_repository.get_page(session, document.id, 1).text == "Restored"
+
+
+def test_deletion_can_finish_while_pdf_is_being_parsed(
+    engine: Engine, monkeypatch: MonkeyPatch
+) -> None:
+    document = upload(engine, text_pdf("Deleted"))
+    claimed = document_processing.claim_next_document(engine)
+    parsing = Event()
+    release_parsing = Event()
+    parsed = Event()
+
+    def pause_parsing(original: BytesIO):
+        parsing.set()
+        assert release_parsing.wait(10)
+        result = read_pdf_page_results(original)
+        assert result == [("Deleted", "text")]
+        parsed.set()
+        return result
+
+    def delete() -> None:
+        with Session(engine) as session:
+            deletion.delete_document(session, document.id, config.UPLOAD_DIR)
+
+    monkeypatch.setattr(document_processing, "read_pdf_page_results", pause_parsing)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        processed = pool.submit(document_processing.process_document, engine, claimed, config.UPLOAD_DIR)
+        try:
+            assert parsing.wait(5)
+            pool.submit(delete).result(timeout=5)
+        finally:
+            release_parsing.set()
+        processed.result(timeout=5)
+
+    assert parsed.is_set()
+    with Session(engine) as session:
+        assert session.get(DocumentProcessing, document.id) is None
+        assert page_repository.list_pages_by_document(session, document.id) == []
 
 
 @mark.parametrize("failure", ["missing", "corrupt", "second_page", "db_write"])
