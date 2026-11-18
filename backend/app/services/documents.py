@@ -9,6 +9,7 @@ from pypdf import PdfReader
 from sqlalchemy.orm import Session
 
 from backend.app.models.document import Document
+from backend.app.models.document_processing import DocumentProcessing
 from backend.app.repositories import document as document_repository
 from backend.app.repositories import subject as subject_repository
 
@@ -153,6 +154,7 @@ def upload_document(
             file_size_bytes=size,
             page_count=page_count,
         )
+        session.add(DocumentProcessing(document_id=document.id))
         session.commit()
     except BaseException:
         session.rollback()
