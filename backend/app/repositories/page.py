@@ -44,3 +44,11 @@ def list_pages_by_document(session: Session, document_id: int) -> list[Page]:
 def delete_pages_by_document(session: Session, document_id: int) -> None:
     # 자료를 삭제하기 전에 그 자료의 페이지를 모두 지운다.
     session.execute(delete(Page).where(Page.document_id == document_id))
+
+
+def delete_pages_beyond_count(
+    session: Session, *, document_id: int, page_count: int
+) -> None:
+    session.execute(
+        delete(Page).where(Page.document_id == document_id, Page.page_number > page_count)
+    )

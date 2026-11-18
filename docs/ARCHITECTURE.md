@@ -167,7 +167,7 @@ Subject
 
 - `(document_id, page_number)`에 unique 제약(`uq_pages_document_page_number`)을 두어 같은 자료의 페이지 번호 중복을 DB에서 막는다. 이 제약의 인덱스가 자료별 조회에도 쓰이므로 `document_id` 단독 인덱스는 두지 않는다. 다른 자료끼리는 같은 페이지 번호를 쓸 수 있다.
 - `text`가 `NULL`이면 아직 텍스트를 얻지 않은(추출·OCR 전) 페이지이고, 빈 문자열이면 처리했지만 텍스트가 없는 페이지다. 빈 문자열이 곧 OCR 대상이라는 뜻은 아니다. OCR 후보 판별과 실패·진행 상태는 #30에서 정하며, 상태를 Page에 둘지 별도 필드로 둘지도 그때 합의한다.
-- `page_number`가 `Document.page_count` 이하인지는 DB 제약으로 강제하지 않는다. 페이지를 만드는 추출 작업(#29)이 원본 페이지 수를 기준으로 생성한다.
+- `page_number`가 `Document.page_count` 이하인지는 DB 제약으로 강제하지 않는다. 추출 작업(#29)이 원본 PDF의 물리 페이지 범위를 기준으로 `Page`를 생성하고 정리한다.
 - Repository는 전달받은 Session만 사용하고 commit·rollback은 호출하는 서비스가 담당한다. 같은 페이지를 다시 처리할 때 중복 생성하지 않도록 `save_page`로 기존 `Page.id`를 유지한 채 갱신한다.
 
 ### Note·삭제·검색과의 경계
@@ -186,7 +186,7 @@ Subject
 
 | 함수·예외 | 책임 |
 | --- | --- |
-| `extract_document_pages(session, document_id, *, upload_dir)` | `Document`와 원본 파일을 검증하고 모든 페이지의 텍스트를 추출한 뒤 한 트랜잭션에서 `save_page`로 저장·갱신하고 `commit`한다. 완료 후 페이지 번호 오름차순 `list[Page]`를 반환한다. |
+| `extract_document_pages(session, document_id, *, upload_dir)` | `Document`와 원본 파일을 검증하고 모든 페이지의 텍스트를 추출한다. 한 트랜잭션에서 `save_page`로 텍스트를 저장·갱신하고 해당 자료에서 실제 페이지 수를 초과하는 `Page`를 삭제한다. 커밋 후 물리 페이지 `1..N`의 `list[Page]`를 페이지 번호 오름차순으로 반환한다. |
 | `read_pdf_page_texts(path)` | 앞 1024바이트 `%PDF-` 헤더, 비암호화 여부, 1페이지 이상 여부를 확인한 뒤 `pypdf`로 물리 페이지 순서대로 텍스트를 추출·정규화한다. |
 | `normalize_extracted_text(raw_text)` | `None`을 `""`로 변환하고 NUL(`\x00`)을 제거하며, 공백·줄바꿈만 있는 텍스트는 `""`로 통일한다. |
 | `is_page_extracted(page)` / `has_page_text(page)` | #30 상태·OCR 판별 연계 헬퍼. `is_page_extracted`는 `page.text is not None`(추출 완료 여부), `has_page_text`는 공백 이외 텍스트 유무를 반환한다. |

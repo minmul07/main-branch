@@ -273,6 +273,10 @@ def test_db_failure_during_save_or_commit_rolls_back_all_pages(
 
     monkeypatch.undo()
 
+    with Session(engine) as session:
+        create_page(session, document_id=document_id, page_number=4, text="Stale page")
+        session.commit()
+
     def fail_commit(self: Session) -> None:
         raise RuntimeError("commit failed")
 
@@ -281,7 +285,9 @@ def test_db_failure_during_save_or_commit_rolls_back_all_pages(
         with raises(RuntimeError):
             extract_document_pages(session, document_id, upload_dir=upload_dir)
     monkeypatch.undo()
-    assert count_pages(engine, document_id) == 0
+    with Session(engine) as session:
+        pages = list_pages_by_document(session, document_id)
+        assert [(p.page_number, p.text) for p in pages] == [(4, "Stale page")]
 
 
 def test_reexecution_is_idempotent_and_preserves_page_ids_and_partial_rows(
@@ -290,15 +296,16 @@ def test_reexecution_is_idempotent_and_preserves_page_ids_and_partial_rows(
     document_id = upload_pdf(
         engine, upload_dir, subject_id, multi_page_pdf(["Alpha", "Beta", "Gamma"])
     )
-    # 사전에 2페이지만 text=None으로 생성된 부분 상태를 준비한다.
     with Session(engine) as session:
         precreated = create_page(session, document_id=document_id, page_number=2, text=None)
         precreated_id = precreated.id
+        create_page(session, document_id=document_id, page_number=4, text="Stale page")
         session.commit()
 
     with Session(engine) as session:
         first_run = extract_document_pages(session, document_id, upload_dir=upload_dir)
         first_ids = [page.id for page in first_run]
+        assert [page.page_number for page in first_run] == [1, 2, 3]
         assert first_run[1].id == precreated_id
         assert [page.text for page in first_run] == ["Alpha", "Beta", "Gamma"]
 
@@ -334,7 +341,9 @@ def test_failed_reexecution_preserves_existing_committed_pages(
 def test_updates_null_page_count_and_preserves_other_documents_and_notes(
     engine: Engine, upload_dir: Path, subject_id: int
 ) -> None:
-    other_doc_id = upload_pdf(engine, upload_dir, subject_id, text_pdf("Other Doc"))
+    other_doc_id = upload_pdf(
+        engine, upload_dir, subject_id, multi_page_pdf(["Other 1", "Other 2", "Other 3"])
+    )
     with Session(engine) as session:
         other_pages = extract_document_pages(session, other_doc_id, upload_dir=upload_dir)
         session.add(
@@ -356,6 +365,7 @@ def test_updates_null_page_count_and_preserves_other_documents_and_notes(
             file_size_bytes=(upload_dir / stored_name).stat().st_size,
             page_count=None,
         )
+        create_page(session, document_id=target.id, page_number=3, text="Stale page")
         session.add(Note(document_id=target.id, page_number=1, title="대상 메모", content="보존"))
         session.commit()
         target_id = target.id
@@ -370,6 +380,7 @@ def test_updates_null_page_count_and_preserves_other_documents_and_notes(
 
     # 다른 자료의 Page와 Note가 보존되고, 대상 자료 삭제도 정상 동작해야 한다.
     with Session(engine) as session:
+        assert [p.page_number for p in list_pages_by_document(session, target_id)] == [1, 2]
         assert [
             (p.id, p.text) for p in list_pages_by_document(session, other_doc_id)
         ] == other_snapshot
@@ -378,4 +389,4 @@ def test_updates_null_page_count_and_preserves_other_documents_and_notes(
         deletion.delete_document(session, target_id, upload_dir)
         assert get_document(session, target_id) is None
         assert list_pages_by_document(session, target_id) == []
-        assert len(list_pages_by_document(session, other_doc_id)) == 1
+        assert len(list_pages_by_document(session, other_doc_id)) == 3

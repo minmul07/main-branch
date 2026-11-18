@@ -76,6 +76,7 @@ uv run pytest
 - 빈 페이지·스캔 페이지·공백만 있는 페이지와 이들이 섞인 혼합 PDF에서 추출 완료 후 `text`는 `""`로 저장되어 미추출(`None`)과 구분되고(`is_page_extracted` 참, `has_page_text` 거짓), NUL(`\x00`) 제거 정규화가 적용되어야 합니다.
 - 없는 자료 ID(`DocumentNotFoundError`), 누락된 원본 파일(`DocumentFileNotFoundError`), 비PDF·손상·암호화·0페이지·`Document.page_count` 불일치(`InvalidPdfFileError`)는 실패하고 페이지를 저장하지 않아야 합니다.
 - 중간 페이지 추출 예외나 DB 저장·`commit` 실패 시 전체 롤백되어 일부 페이지만 남지 않아야 합니다.
+- 추출에 성공하면 실제 페이지 수를 초과하는 해당 자료의 기존 `Page`가 DB와 반환 목록에서 제거되어야 합니다. `page_count`가 기존에 설정된 경우와 `None`인 경우를 확인합니다. 커밋 실패 시 삭제된 행이 복구되어야 합니다.
 - 반복 실행 시 기존 `Page.id`를 유지하며(사전에 `text=None`으로 존재하는 부분 행 포함), 이미 커밋된 유효한 `Page`가 있는 자료의 재실행이 실패해도 기존 유효 결과가 유실되지 않아야 합니다.
 - `Document.page_count`가 `None`이었던 자료를 추출하면 실제 페이지 수로 갱신되고, 다른 자료·메모는 보존되며, 추출된 `Page`가 있는 자료는 `deletion.delete_document`로 정상 삭제되어야 합니다.
 - Windows Python 3.14.7에서 `.venv\Scripts\pytest.exe` 231개가 통과했습니다(기존 Starlette/httpx 사용 중단 예정 경고 1건).

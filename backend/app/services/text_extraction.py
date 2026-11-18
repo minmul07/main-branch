@@ -82,18 +82,22 @@ def extract_document_pages(
         raise DocumentFileNotFoundError(f"document {document_id} file not found")
 
     page_texts = read_pdf_page_texts(path)
-    if document.page_count is not None and document.page_count != len(page_texts):
+    page_count = len(page_texts)
+    if document.page_count is not None and document.page_count != page_count:
         raise InvalidPdfFileError(
-            f"PDF page count {len(page_texts)} does not match document page_count {document.page_count}"
+            f"PDF page count {page_count} does not match document page_count {document.page_count}"
         )
 
     try:
         if document.page_count is None:
-            document.page_count = len(page_texts)
+            document.page_count = page_count
         for page_number, page_text in enumerate(page_texts, start=1):
             page_repository.save_page(
                 session, document_id=document.id, page_number=page_number, text=page_text
             )
+        page_repository.delete_pages_beyond_count(
+            session, document_id=document.id, page_count=page_count
+        )
         session.commit()
     except BaseException:
         session.rollback()
