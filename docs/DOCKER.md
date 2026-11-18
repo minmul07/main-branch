@@ -69,7 +69,7 @@ backend 컨테이너의 `UPLOAD_DIR`은 `/data/uploads`로, SQLite와 같은 `ba
 
 ### 테이블 초기화
 
-Docker 컨테이너는 시작할 때마다 `uv run --locked python -m backend.app.init_db`를 실행한 뒤 Uvicorn을 시작합니다. `subjects`·`documents`·`notes`·`pages` 테이블이 함께 준비되며, 기존 볼륨에 없는 테이블(예: #28에서 추가한 `pages`)은 다음 시작 때 추가됩니다. 초기화 명령은 `create_all`을 사용하므로 다시 실행해도 기존 테이블과 행을 보존합니다. 이미지 빌드나 Python import 시에는 실행하지 않습니다. 초기화에 실패하면 명령이 실패 상태로 종료되어 Uvicorn은 시작되지 않으며, 원인은 backend 컨테이너 로그에서 확인할 수 있습니다.
+Docker 컨테이너는 시작할 때마다 `uv run --locked python -m backend.app.init_db`를 실행한 뒤 Uvicorn을 시작합니다. `subjects`·`documents`·`notes`·`pages`·`document_processing` 테이블을 준비하고, 기존 볼륨에서는 누락된 테이블을 추가하고 작업 행이 없는 자료를 대기열에 등록합니다. 다시 실행해도 기존 행과 처리 상태를 보존합니다. 초기화에 실패하면 Uvicorn 시작 전에 명령이 종료되며, 원인은 backend 컨테이너 로그에서 확인할 수 있습니다. 같은 SQLite 볼륨에는 backend 인스턴스 하나를 실행합니다. [PDF 처리 문서](PDF_PROCESSING.md)
 
 Docker에서 초기화만 명시적으로 실행하려면 저장소 루트에서 다음 명령을 사용합니다. 이 명령은 이미지의 기본 시작 명령을 대체하므로 Uvicorn을 시작하지 않습니다.
 
@@ -77,7 +77,7 @@ Docker에서 초기화만 명시적으로 실행하려면 저장소 루트에서
 docker compose run --rm --no-deps backend uv run --locked python -m backend.app.init_db
 ```
 
-Docker 없이 실행할 때 앱 시작은 테이블을 자동 생성하지 않습니다. 저장소 루트에서 `uv run python -m backend.app.init_db`를 실행해 준비합니다. 대상 DB는 위의 `DATABASE_PATH` 규칙을 따릅니다. 이미 있는 테이블과 데이터는 유지되므로 다시 실행해도 됩니다.
+Docker 없이 실행할 때는 Uvicorn을 시작하기 전에 저장소 루트에서 `uv run python -m backend.app.init_db`를 실행합니다. 대상 DB는 위의 `DATABASE_PATH` 규칙을 따릅니다. 기존 DB를 업그레이드할 때도 같은 명령을 실행합니다.
 
 데이터까지 초기화하려는 경우에만 다음 명령을 실행합니다. **해당 Compose 프로젝트의 SQLite 데이터가 삭제됩니다.**
 

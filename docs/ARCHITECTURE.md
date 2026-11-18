@@ -6,7 +6,7 @@
 
 핵심 흐름은 **과목·주차별 PDF 등록 → 텍스트 추출/OCR → 페이지 단위 검색 → 원문 페이지 확인 → 메모 작성**이다. 한 사람이 자기 컴퓨터에서 브라우저로 사용하는 로컬 웹 앱을 기준으로 한다. OCR과 실패 재시도는 P0 범위에 포함한다.
 
-현재 저장소에는 React 기본 화면, FastAPI 기본 서버와 SQLite 연결, Subject 모델·Repository와 Subject 생성·목록 API, Document 모델·Repository·업로드 서비스와 `/documents` API, Page 모델·Repository와 페이지 텍스트 추출 서비스가 있다. 그 밖의 업무 기능은 구현 전이다. API 계약은 [API.md](API.md), 실행 환경과 검증 기준은 [DOCKER.md](DOCKER.md)와 [TESTING.md](TESTING.md)를 참고한다.
+React 프론트엔드와 FastAPI·SQLite 백엔드에서 과목, PDF 자료, 페이지 메모를 관리한다. PDF 자료는 업로드 후 페이지 텍스트를 추출하며 처리 상태 조회와 재시도를 제공한다. API 계약은 [API.md](API.md), 실행 환경과 검증 기준은 [DOCKER.md](DOCKER.md)와 [TESTING.md](TESTING.md)를 참고한다.
 
 ## 기본 구조
 
@@ -35,7 +35,7 @@ FastAPI
 | Search Service | 페이지 텍스트 색인과 검색 결과 생성 |
 | Repository | 서비스에서 사용하는 SQLite 데이터 접근 |
 
-PDF 처리 라이브러리는 pypdf를 사용한다. 업로드 단계에 필요한 PDF 구조 검증, 암호화 여부, 페이지 수 확인을 지원하고 페이지 텍스트 추출도 제공한다. 순수 Python 패키지라 Docker 이미지에 시스템 라이브러리를 추가하지 않아도 된다. pdfplumber는 pdfminer.six 기반으로 표·좌표 분석에 강하지만 현재 범위에는 필요하지 않아 함께 추가하지 않는다. 오래 걸리는 PDF/OCR 처리의 실행 방식과 저장 경로는 PDF/backend 담당자가 상세 설계한다.
+PDF 처리 라이브러리는 pypdf를 사용한다. 업로드 단계에 필요한 PDF 구조 검증, 암호화 여부, 페이지 수 확인을 지원하고 페이지 텍스트 추출도 제공한다. 순수 Python 패키지라 Docker 이미지에 시스템 라이브러리를 추가하지 않아도 된다. PDF 처리 순서와 장애 복구는 [PDF 처리 문서](PDF_PROCESSING.md)를 참고한다.
 
 ## 담당 역할과 협업 경계
 
@@ -166,7 +166,7 @@ Subject
 | `text` | `Text` 또는 `NULL` | 페이지 텍스트. 의미는 아래와 같다. |
 
 - `(document_id, page_number)`에 unique 제약(`uq_pages_document_page_number`)을 두어 같은 자료의 페이지 번호 중복을 DB에서 막는다. 이 제약의 인덱스가 자료별 조회에도 쓰이므로 `document_id` 단독 인덱스는 두지 않는다. 다른 자료끼리는 같은 페이지 번호를 쓸 수 있다.
-- `text`가 `NULL`이면 아직 텍스트를 얻지 않은(추출·OCR 전) 페이지이고, 빈 문자열이면 처리했지만 텍스트가 없는 페이지다. 빈 문자열이 곧 OCR 대상이라는 뜻은 아니다. OCR 후보 판별과 실패·진행 상태는 #30에서 정하며, 상태를 Page에 둘지 별도 필드로 둘지도 그때 합의한다.
+- `text`가 `NULL`이면 아직 텍스트를 얻지 않은(추출·OCR 전) 페이지이고, 빈 문자열이면 처리했지만 텍스트가 없는 페이지다. OCR 후보와 문서의 처리 상태는 별도 `document_processing` 행에 기록한다. [PDF 처리 문서](PDF_PROCESSING.md)
 - `page_number`가 `Document.page_count` 이하인지는 DB 제약으로 강제하지 않는다. 추출 작업(#29)이 원본 PDF의 물리 페이지 범위를 기준으로 `Page`를 생성하고 정리한다.
 - Repository는 전달받은 Session만 사용하고 commit·rollback은 호출하는 서비스가 담당한다. 같은 페이지를 다시 처리할 때 중복 생성하지 않도록 `save_page`로 기존 `Page.id`를 유지한 채 갱신한다.
 
@@ -178,32 +178,33 @@ Subject
 
 ### 기존 DB 업그레이드
 
-`pages`는 새 테이블이고 기존 `subjects`·`documents`·`notes` 테이블의 컬럼은 바꾸지 않았다. 따라서 별도 마이그레이션 도구 없이 `init_db`(`create_all`)를 실행하면 기존 행과 PDF 파일을 그대로 둔 채 `pages` 테이블만 추가된다. 재실행해도 안전하다. Docker 컨테이너는 시작할 때 자동으로 실행하고, Docker 없이 실행할 때는 저장소 루트에서 `uv run python -m backend.app.init_db`를 실행한다. 기존 테이블의 컬럼을 바꿔야 하는 변경이 생기면 `create_all`로는 반영되지 않으므로 별도 업그레이드 절차가 필요하다.
+`init_db`는 기존 행과 PDF 파일을 유지하면서 `pages`와 `document_processing` 등 누락된 테이블을 추가하고, 작업이 없는 자료를 대기열에 등록한다. Docker 컨테이너는 시작할 때 자동으로 실행하고, Docker 없이 실행할 때는 저장소 루트에서 `uv run python -m backend.app.init_db`를 실행한다. 기존 테이블의 컬럼을 바꿔야 하는 변경이 생기면 `create_all`로는 반영되지 않으므로 별도 업그레이드 절차가 필요하다.
 
 ## 구현된 페이지 텍스트 추출 서비스
 
-#29에서 업로드된 PDF 원본에서 물리 페이지별 텍스트를 추출해 `pages` 테이블에 저장하는 서비스(`backend/app/services/text_extraction.py`)를 추가했다. 처리 실행 시점 연결·상태 전이·OCR 후보 판별은 #30에서 이 계약을 바탕으로 연결한다.
+#29에서 업로드된 PDF 원본에서 물리 페이지별 텍스트를 추출해 `pages` 테이블에 저장하는 서비스(`backend/app/services/text_extraction.py`)를 추가했다. #30의 작업 스레드는 공통 읽기·저장 경로를 재사용하며 추출 텍스트와 페이지 유형을 함께 반영한다.
 
 | 함수·예외 | 책임 |
 | --- | --- |
 | `extract_document_pages(session, document_id, *, upload_dir)` | `Document`와 원본 파일을 검증하고 모든 페이지의 텍스트를 추출한다. 한 트랜잭션에서 `save_page`로 텍스트를 저장·갱신하고 해당 자료에서 실제 페이지 수를 초과하는 `Page`를 삭제한다. 커밋 후 물리 페이지 `1..N`의 `list[Page]`를 페이지 번호 오름차순으로 반환한다. |
 | `read_pdf_page_texts(path)` | 앞 1024바이트 `%PDF-` 헤더, 비암호화 여부, 1페이지 이상 여부를 확인한 뒤 `pypdf`로 물리 페이지 순서대로 텍스트를 추출·정규화한다. |
+| `read_pdf_page_results(path)` / `save_document_page_texts(...)` | 처리 작업이 원본 텍스트·페이지 유형을 읽고, 호출자가 관리하는 트랜잭션 안에서 텍스트를 반영한다. |
 | `normalize_extracted_text(raw_text)` | `None`을 `""`로 변환하고 NUL(`\x00`)을 제거하며, 공백·줄바꿈만 있는 텍스트는 `""`로 통일한다. |
 | `is_page_extracted(page)` / `has_page_text(page)` | #30 상태·OCR 판별 연계 헬퍼. `is_page_extracted`는 `page.text is not None`(추출 완료 여부), `has_page_text`는 공백 이외 텍스트 유무를 반환한다. |
 | `DocumentNotFoundError` / `DocumentFileNotFoundError` / `InvalidPdfFileError` | 모두 `TextExtractionError` 하위 예외다. 각각 `Document` 없음, 원본 파일 없음·경로 이탈, 비PDF·암호화·0페이지·파싱/페이지 추출 실패·`Document.page_count` 불일치를 구분한다. |
 
-- **빈 결과(`""`)와 미추출(`None`)·실패 구분**: 추출이 정상 완료됐지만 텍스트가 없는 빈 페이지·공백 페이지·스캔 이미지 페이지는 모두 `page.text == ""`로 저장된다(`is_page_extracted(page) is True`, `has_page_text(page) is False`). 빈 문자열 자체가 곧 OCR 확정 대상이라는 가정은 하지 않으며, 이미지 유무 등 페이지 특성에 따른 OCR 후보 판별은 #30에서 담당한다. 추출 전 페이지는 `None`, 파싱/추출 오류는 `InvalidPdfFileError` 예외로 구분한다.
+- **빈 결과(`""`)와 미추출(`None`)·실패 구분**: 텍스트가 없는 빈 페이지·공백 페이지·스캔 이미지 페이지의 추출 결과는 `""`이다. OCR 후보는 페이지 유형으로 판별한다. 추출 전 페이지는 `None`, 파싱·추출 오류는 `InvalidPdfFileError` 예외로 구분한다.
 - **원자성과 재실행·기존 유효 결과 보존**: `read_pdf_page_texts()`로 전체 페이지 텍스트를 먼저 읽은 뒤 DB에 반영하고, DB 반영·`commit` 중 예외가 나면 `rollback`한다. 따라서 중간 페이지 추출 실패나 DB 오류 시 부분 결과만 저장되지 않으며, 이미 커밋된 유효한 `Page` 결과나 다른 자료·메모도 유실되지 않는다. 반복 실행 시에는 `save_page`가 기존 `(document_id, page_number)` 행을 제자리 갱신해 `Page.id`를 유지하고 중복 생성을 막는다.
 - **누락된 `page_count` 보정**: `Document.page_count`가 `None`인 자료를 추출하면 실제 페이지 수로 함께 갱신하고, 이미 값이 있는데 실제 PDF 페이지 수와 다르면 `InvalidPdfFileError`로 거부한다.
 
 ## Document 후속 처리 경계
 
-#17은 PDF 원본 저장과 메타데이터 등록·조회까지다. 아래는 구현하지 않았으며, 후속 작업은 다음 연결 지점을 사용한다.
+후속 기능은 다음 연결 지점을 사용한다.
 
 | 후속 작업 | 현재 상태와 연결 지점 |
 | --- | --- |
-| 페이지 텍스트 추출 | 구현됨(#29). `services/text_extraction.py`의 `extract_document_pages()`가 `get_document_file_path()`로 원본을 찾고 `pypdf`로 추출해 [Page 데이터 계층](#구현된-page-데이터-계층)에 저장한다. 기존 `POST /documents`(201)·`GET /documents/{id}/file` 동작은 변경하지 않았으며, 업로드 후 실행 시점 연결은 #30에서 결정한다. |
-| OCR·처리 상태·재시도 | 미구현. 처리 상태 필드나 queued 상태를 만들지 않았다. 비동기 처리를 도입하면 `page_count`의 `NULL`(확인 전)과 상태 값을 함께 설계한다. |
+| 페이지 텍스트 추출·처리 상태·재시도 | 업로드 후 백엔드 작업 스레드에서 실행한다. [PDF 처리 문서](PDF_PROCESSING.md) |
+| OCR 및 상태 UI | 후속 기능은 `document_processing`의 상태와 페이지 유형을 활용할 수 있다. [API 계약](API.md#처리-상태와-재시도-30) |
 | FTS5 검색 | 미구현. Page 텍스트가 생긴 뒤 색인한다. |
 | Subject·Document 삭제 | `services/deletion.py`가 `BEGIN IMMEDIATE`로 삭제를 직렬화하고 Repository의 단건 삭제·flush 및 commit/rollback을 관리한다. 과목은 자료가 있으면 409로 거부한다. 자료는 원본을 격리한 뒤 행을 commit하고 격리 파일을 제거한다. 실패·강제 종료·수동 복구 정책은 [API.md](API.md#파일-실패와-복구)를 따른다. 자료마다 Note → Page → Document 순으로 같은 트랜잭션에서 삭제한다. |
 | frontend 연결·PDF.js 뷰어 | 미구현(#19, #22). frontend는 `/documents` API를 호출하고 PDF.js는 `GET /documents/{id}/file`을 읽는다. CORS는 `CORS_ALLOWED_ORIGINS`로 허용하고 `Content-Disposition`을 노출한다. |

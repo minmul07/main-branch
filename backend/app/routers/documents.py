@@ -22,11 +22,13 @@ from sqlalchemy.orm import Session
 from backend.app import config
 from backend.app.database import get_db
 from backend.app.models.document import Document
+from backend.app.models.document_processing import DocumentProcessing, ProcessingStatus
 from backend.app.repositories import document as document_repository
 from backend.app.repositories import subject as subject_repository
 from backend.app.schemas.document import DocumentRead, IntegerString
+from backend.app.schemas.document_processing import DocumentProcessingRead
 from backend.app.services import documents as document_service
-from backend.app.services import deletion
+from backend.app.services import deletion, document_processing
 
 # multipart 경계와 subject_id·week_number 필드가 차지하는 여유분.
 MULTIPART_OVERHEAD_BYTES = 64 * 1024
@@ -55,7 +57,7 @@ class UploadSizeLimitRoute(APIRoute):
         handler = super().get_route_handler()
 
         async def limited_handler(request: Request) -> Response:
-            if request.method == "POST":
+            if request.method == "POST" and self.body_field is not None:
                 provider = request.app.dependency_overrides.get(
                     get_upload_settings, get_upload_settings
                 )
@@ -150,6 +152,43 @@ def get_document(
     document_id: Annotated[IntegerString, PathParam(gt=0)], db: Session = Depends(get_db)
 ) -> DocumentRead:
     return DocumentRead.model_validate(get_document_or_404(db, document_id))
+
+
+@router.get(
+    "/{document_id}/processing",
+    response_model=DocumentProcessingRead,
+    responses={404: {"description": "Document not found"}},
+)
+def get_document_processing(
+    document_id: Annotated[IntegerString, PathParam(gt=0)], db: Session = Depends(get_db)
+) -> DocumentProcessingRead:
+    job = db.get(DocumentProcessing, document_id)
+    if job is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Document not found.")
+    return DocumentProcessingRead.model_validate(job)
+
+
+@router.post(
+    "/{document_id}/processing/retry",
+    response_model=DocumentProcessingRead,
+    status_code=status.HTTP_202_ACCEPTED,
+    responses={
+        404: {"description": "Document not found"},
+        409: {"description": "Only failed jobs can be retried"},
+    },
+)
+def retry_document_processing(
+    document_id: Annotated[IntegerString, PathParam(gt=0)], db: Session = Depends(get_db)
+) -> DocumentProcessingRead:
+    try:
+        document_processing.retry_processing(db, document_id)
+    except document_processing.ProcessingNotFoundError as error:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Document not found.") from error
+    except document_processing.ProcessingConflictError as error:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, detail="Only failed processing jobs can be retried."
+        ) from error
+    return DocumentProcessingRead(document_id=document_id, status=ProcessingStatus.PENDING)
 
 
 @router.get(

@@ -81,6 +81,15 @@ uv run pytest
 - `Document.page_count`가 `None`이었던 자료를 추출하면 실제 페이지 수로 갱신되고, 다른 자료·메모는 보존되며, 추출된 `Page`가 있는 자료는 `deletion.delete_document`로 정상 삭제되어야 합니다.
 - Windows Python 3.14.7에서 `.venv\Scripts\pytest.exe` 231개가 통과했습니다(기존 Starlette/httpx 사용 중단 예정 경고 1건).
 
+### PDF 처리 상태와 재시도 (`backend/tests/test_document_processing.py`)
+
+- 실제 FastAPI lifespan의 작업 스레드로 `pending` → `processing` → `completed`를 확인합니다. 처리 중에도 업로드 `201`, 기존 메타데이터, 원본 Range `206`이 동작해야 합니다. 상태·재시도 API의 `404`, `409`, `422`와 삭제 시 상태 정리도 확인합니다.
+- 텍스트·스캔·인라인 이미지·혼합·빈/공백·벡터·Form 페이지를 생성해 유형을 검증합니다. 이미지 리소스가 선언만 된 빈 페이지는 OCR 후보가 아니어야 합니다.
+- 원본 누락·손상, 중간 페이지 예외, DB에 페이지를 쓴 직후 예외를 주입합니다. 실패 시 기존 Page ID·텍스트를 보존하고 이번 결과가 롤백돼야 하며 재시도 성공 후 페이지 유형과 텍스트가 일치해야 합니다. 동시 작업 획득과 재시도에서 각각 한 요청만 상태를 변경하는지 확인합니다.
+- 작업 획득 커밋 직후 프로세스가 중단된 DB를 다시 열고 `interrupted`와 수동 재시도, 대기 작업 자동 처리를 확인합니다. 삭제 후 SQLite가 ID를 재사용해도 이전 작업의 결과가 새 자료에 반영되면 안 됩니다.
+- 기존 스키마에서 `init_db`를 반복 실행해 대기열을 추가하되 자료·텍스트·메모·기존 작업 상태를 유지하는지 확인합니다.
+- Windows Python 3.14.7에서 백엔드 pytest 247개가 통과했습니다. 별도 임시 DB와 Uvicorn 프로세스로 실행 중 강제 종료 후 `interrupted` 전환, 대기 작업 자동 처리, 수동 재시도와 원본 Range `206`을 확인했습니다.
+
 ### PDF 업로드 서비스 (`backend/tests/test_document_service.py`)
 
 - 임시 SQLite와 `tmp_path` 아래 업로드 디렉터리를 사용하며 개발용 DB·`backend/uploads`를 건드리지 않습니다. 테스트 PDF는 `backend/tests/pdf_samples.py`가 코드로 생성합니다(텍스트 PDF, 이미지만 있는 스캔 PDF, 여러 페이지, 암호화, 0페이지).

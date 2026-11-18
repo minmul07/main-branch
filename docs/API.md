@@ -65,7 +65,7 @@ P0 MVP에서 frontend와 backend가 같은 경로와 데이터 의미를 사용�
 ### `POST /documents`
 
 - 요청: `multipart/form-data`. `file`(PDF 1개), `subject_id`, `week_number`
-- 응답 `201`: 생성한 Document 메타데이터. 파일 저장과 DB 기록이 끝났다는 뜻이며 텍스트 추출·OCR 완료를 뜻하지 않는다.
+- 응답 `201`: 생성한 Document 메타데이터. 원본 파일 저장과 Document·대기 작업 등록이 완료된 상태다. 처리 상태는 별도 API에서 조회한다.
 - 같은 파일·파일명을 다시 올리면 별도 Document로 저장한다. 중복 판별(409)은 하지 않는다.
 - 오류
 
@@ -98,10 +98,29 @@ P0 MVP에서 frontend와 backend가 같은 경로와 데이터 의미를 사용�
 - `404`: 없는 Document, 또는 Document는 있지만 원본 파일이 사라진 경우. `422`: 잘못된 ID.
 - 페이지 텍스트 조회(`/documents/{id}/pages/{page}`)와는 별개다.
 
+### 처리 상태와 재시도 (#30)
+
+`GET /documents/{id}/processing`은 현재 작업 상태를 `200`으로 반환한다. 처리 중이거나 처리에 실패한 자료도 기존 메타데이터와 원본을 조회할 수 있다. 원본이 사라졌으면 원본 조회는 `404`다. 기존 Document 응답에는 처리 필드를 추가하지 않으며, 기존 자료의 `page_count`가 `null`이면 추출 성공 시 실제 페이지 수가 기록된다.
+
+```json
+{
+  "document_id": 1,
+  "status": "completed",
+  "error_code": null,
+  "page_kinds": ["text", "image", "blank", "mixed", "unknown"]
+}
+```
+
+- `status`는 `pending`(대기), `processing`(진행), `completed`(텍스트 추출과 판별 완료), `failed`(실패) 중 하나다.
+- `page_kinds`는 `completed`에서 물리 페이지 순서대로 반환하며 나머지 상태는 `null`이다. `image`가 OCR 후보이고 `mixed`와 `unknown`은 검토 대상이다. 분류 기준과 한계는 [PDF 처리 문서](PDF_PROCESSING.md#페이지-종류)를 참고한다.
+- `error_code`는 `failed`에서만 설정된다. `original_missing`은 원본 없음, `invalid_pdf`는 PDF 파싱·페이지 추출 또는 페이지 수 불일치, `processing_error`는 기타 파일·저장 처리 오류, `interrupted`는 서버가 멈추면서 중단된 작업을 뜻한다.
+
+`POST /documents/{id}/processing/retry`는 본문 없이 `failed` 작업을 다시 대기열에 등록한다. 응답은 `202`이며 `document_id`, `status: "pending"`, `error_code: null`, `page_kinds: null`을 반환한다. 이후 GET 응답은 실제 현재 상태를 반환한다. `pending`·`processing`·`completed`에서 요청하면 `409`다. 두 API 모두 대상 자료가 없으면 `404`, 잘못된 ID는 `422`, DB 오류는 `500`으로 응답한다.
+
 ### 삭제 API 확정 계약 (#25)
 
 - `DELETE /subjects/{subject_id}`: 빈 과목은 즉시 삭제한다. 자료가 있으면 `confirmed_name` 쿼리가 현재 과목명과 정확히 일치해야 과목·모든 자료·원본 PDF·자료의 메모를 함께 삭제한다. 누락·불일치는 `409`, 없는 과목은 `404`, 성공은 본문 없는 `204`이다. 전체 자료를 같은 트랜잭션에서 삭제하며 실패 시 격리한 원본을 모두 복원한다. 다른 과목과 자료에는 영향을 주지 않는다.
-- `DELETE /documents/{document_id}`: 해당 Document 행, 그 자료의 메모, 서버 저장 PDF 원본을 삭제한다. 성공은 본문 없는 `204`, 없는 자료는 `404`이다. 원본이 이미 없으면 메타데이터 삭제를 허용한다. 메모는 자료와 같은 트랜잭션에서 먼저 삭제하며, 이후 Page 테이블이 생기면 삭제 정책을 별도로 확장한다.
+- `DELETE /documents/{document_id}`: 해당 Document 행, 메모, 페이지, 처리 상태, 서버 저장 PDF 원본을 삭제한다. 성공은 본문 없는 `204`, 없는 자료는 `404`이다. 원본이 이미 없으면 메타데이터 삭제를 허용한다. DB 행은 같은 트랜잭션에서 삭제하며 과목 일괄 삭제에도 같은 규칙을 적용한다.
 - 두 경로 ID는 양의 정수 문자열이며 0·음수·문자·소수 형태는 `422`이다. 오류는 기존 `detail` 형식이며 문구는 고정 계약이 아니다. 저장소·DB 실패는 `500`이고 성공 응답을 반환하지 않는다. DELETE는 CORS 허용 메서드에 포함한다.
 
 #### 파일 실패와 복구
@@ -127,8 +146,10 @@ DB와 파일시스템은 단일 원자적 트랜잭션이 아니다. commit 이�
 | DELETE | `/subjects/{id}` | 과목 ID, 선택적 confirmed_name | 빈 과목 또는 정확한 과목명 확인 시 일괄 삭제 204, 자료가 있고 이름 미확인 시 409 |
 | POST | `/documents` | PDF `file`, 과목 `subject_id`, 주차 `week_number` | 구현됨. 생성한 Document 메타데이터 |
 | GET | `/documents?subject_id={id}` | 과목 ID | 구현됨. 과목별 Document 목록 |
-| GET | `/documents/{id}` | 문서 ID | 구현됨. Document 메타데이터. 처리 상태 필드는 OCR 단계에서 협의 |
+| GET | `/documents/{id}` | 문서 ID | 구현됨. Document 메타데이터 |
 | GET | `/documents/{id}/file` | 문서 ID | 구현됨. 원본 PDF |
+| GET | `/documents/{id}/processing` | 문서 ID | 구현됨. 현재 처리 상태와 완료 시 페이지 유형 |
+| POST | `/documents/{id}/processing/retry` | 문서 ID | 구현됨. 실패한 작업만 재등록 202 |
 | DELETE | `/documents/{id}` | 문서 ID | 구현됨. 메타데이터·원본 삭제 204; 실패·복구 정책은 위 확정 계약 참고 |
 | GET | `/documents/{id}/pages/{page}` | 문서 ID, 페이지 번호 | 페이지 ID, 문서 ID, 페이지 번호, 추출 텍스트 |
 | GET | `/search?q=...` | 검색어 `q`; 과목 범위 지정용 `subject_id` 제안 | 페이지 단위 검색 결과 목록 |
@@ -158,7 +179,6 @@ DB와 파일시스템은 단일 원자적 트랜잭션이 아니다. commit 이�
 ## 구현 전 합의할 항목
 
 - 요청·응답의 정확한 필드명·타입, 목록·오류 형식과 성공 상태 코드
-- OCR 도입 시 업로드 처리의 비동기 여부, 처리 상태 값과 실패 재시도 계약 (현재 업로드는 PDF 검증·페이지 수 확인까지 동기 처리하고 처리 상태 필드는 없다)
 - 페이지 처리 중이거나 추출에 실패했을 때 페이지 조회 응답
 - 검색의 과목 범위와 결과 정렬·페이지네이션
 - Page·Note 도입 시 문서 삭제의 하위 데이터 처리, 페이지별 메모 개수
