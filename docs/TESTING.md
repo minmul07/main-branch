@@ -2,7 +2,7 @@
 
 [CI 워크플로](../.github/workflows/ci.yml)는 `main` 대상 PR 생성·추가 커밋과 `main` push 시 실행됩니다. `workflow_dispatch`를 통한 수동 실행은 워크플로가 기본 브랜치에 등록된 뒤 사용할 수 있습니다. 작업 브랜치에 push만 하고 PR을 생성하지 않으면 자동 실행되지 않습니다.
 
-- `Backend tests`: Ubuntu 환경에서 Python 3.14와 uv로 `uv sync --locked`, `uv run --locked pytest`를 실행합니다.
+- `Backend tests`: Ubuntu 환경에서 OCR 시스템 의존성(`tesseract-ocr`, `tesseract-ocr-eng`, `tesseract-ocr-kor`)을 설치한 뒤 Python 3.14와 uv로 `uv sync --locked`, `uv run --locked pytest`를 실행합니다.
 - `Frontend checks`: Ubuntu 환경에서 Node 22 최신 패치로 `frontend/`의 `npm ci`, `npm test`, `npm run build`, `npm run lint`를 실행합니다.
 - 두 job은 병렬로 실행하며 각각 제한 시간은 15분입니다. 같은 브랜치에서 새 실행이 시작되면 이전 실행은 취소됩니다.
 - 의존성 설치에는 `uv.lock`과 `frontend/package-lock.json`을 사용하고 다운로드 캐시를 재사용합니다.
@@ -255,3 +255,9 @@ docker compose run --rm --no-deps frontend npm run lint
 - `/data/app.db`에서 SQLAlchemy `SELECT 1`과 기록·커밋이 성공했습니다. `down` 후 `up --build --detach --wait`로 컨테이너를 재생성한 뒤 같은 기록과 두 서비스 healthy 상태를 확인했습니다.
 - 기본값, 포트 변경, 명시적인 API URL, 빈 환경변수 처리를 `docker compose config`로 확인했습니다. Windows·macOS 직접 실행은 미검증입니다.
 - 자료 업로드 변경 시 다중 파일 선택·드롭, 주차 검증, 파일별 성공·실패와 재시도, 실제 목록 갱신을 확인한다. 실제 브라우저와 서버에서 업로드 및 새로고침 후 목록도 확인한다.
+
+## 직접 검증 기록: #31 OCR 사전 의존성 구성 (2026-11-20)
+
+- Windows Python 3.14.7 (`uv 0.13.9`): `uv sync --locked` 후 `pypdfium2==5.15.2`·`pillow==13.0.0` 스모크 테스트(`text_pdf("Hello OCR")` → PNG `(1224, 1584)`, 15,584바이트)와 `uv run --locked pytest` 254개(기존 Starlette/httpx 사용 중단 예정 경고 1건) 통과를 확인했습니다. (단, Windows 샌드박스 내부에서는 `TestClient` 루프백 소켓 제약으로 인해 `TestClient` 비포함 테스트인 `test_text_extraction.py` 15개만 통과하고, 전체 254개는 일반 권한 실행에서 통과 확인)
+- Docker (`python:3.14-slim-bookworm`, `uv:0.11.1`, Python 3.14.10): `docker compose config --quiet` 및 `docker compose build backend` 통과. 컨테이너 내부에서 `tesseract 5.3.0`(`leptonica-1.82.0`), 사용 가능 언어(`eng`, `kor`, `osd`), `pypdfium2` → `Pillow` → `tesseract stdin stdout -l eng` / `-l kor+eng` 스모크 테스트(`"Operating Systems"` 인식), 그리고 `docker compose run --rm --no-deps backend uv run --locked pytest` 254개(기존 경고 1건) 통과를 확인했습니다.
+- 호스트 Windows `tesseract` 바이너리 실행, macOS 실행, 실제 한국어 스캔 이미지 OCR, GitHub Actions CI 실행, 그리고 #31 본 작업(OCR 서비스·상태 UI)은 이번 단계에서 수행하지 않았습니다.

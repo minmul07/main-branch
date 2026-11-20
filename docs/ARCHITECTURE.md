@@ -35,7 +35,7 @@ FastAPI
 | Search Service | 페이지 텍스트 색인과 검색 결과 생성 |
 | Repository | 서비스에서 사용하는 SQLite 데이터 접근 |
 
-PDF 처리 라이브러리는 pypdf를 사용한다. 업로드 단계에 필요한 PDF 구조 검증, 암호화 여부, 페이지 수 확인을 지원하고 페이지 텍스트 추출도 제공한다. 순수 Python 패키지라 Docker 이미지에 시스템 라이브러리를 추가하지 않아도 된다. PDF 처리 순서와 장애 복구는 [PDF 처리 문서](PDF_PROCESSING.md)를 참고한다.
+PDF 처리 라이브러리는 pypdf를 사용한다. 업로드 단계에 필요한 PDF 구조 검증, 암호화 여부, 페이지 수 확인을 지원하고 페이지 텍스트 추출도 제공한다. 순수 Python 패키지라 Docker 이미지에 시스템 라이브러리를 추가하지 않아도 된다. OCR(#31) 준비 단계에서는 MIT 라이선스 호환성과 유지보수를 고려해 `pypdfium2`(페이지 렌더링, Apache-2.0/BSD-3-Clause), `Pillow`(이미지 변환, MIT-CMU), 시스템 `tesseract-ocr`(`eng`, `kor`, Apache-2.0)를 사용하며 Python 표준 라이브러리 `subprocess`로 직접 호출해 AGPL(`PyMuPDF`), GPL(`poppler-utils`), 추가 래퍼(`pytesseract`) 의존성을 피한다. PDF 처리 순서와 장애 복구는 [PDF 처리 문서](PDF_PROCESSING.md)를 참고한다.
 
 ## 담당 역할과 협업 경계
 
