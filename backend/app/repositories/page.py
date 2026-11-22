@@ -27,6 +27,16 @@ def save_page(
     return page
 
 
+def set_page_ocr_text(
+    session: Session, *, document_id: int, page_number: int, ocr_text: str
+) -> None:
+    """저장된 페이지의 OCR 결과를 갱신한 뒤 flush한다. 페이지가 없으면 아무것도 하지 않는다."""
+    page = get_page(session, document_id, page_number)
+    if page is not None:
+        page.ocr_text = ocr_text
+        session.flush()
+
+
 def get_page(session: Session, document_id: int, page_number: int) -> Page | None:
     return session.scalar(
         select(Page).where(Page.document_id == document_id, Page.page_number == page_number)

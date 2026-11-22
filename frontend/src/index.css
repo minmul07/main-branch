@@ -181,3 +181,10 @@ button:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visibl
 .upload-list input { width:64px; padding:7px; border:1px solid #aaa; border-radius:8px; }
 .upload-list li > button { border:0; background:transparent; font-size:20px; }
 .upload-list small { flex-basis:100%; color:#62666b; overflow-wrap:anywhere; }
+.document-list li { flex-wrap: wrap; }
+.document-list li > .document-menu { top: 15px; }
+.processing-status { display: flex; flex-basis: 100%; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 2px 16px 6px; color: #62666b; font-size: 13px; }
+.processing-failed, .processing-error { color: #b3261e; }
+.processing-status button { padding: 3px 10px; border: 1px solid #dedcdc; border-radius: 6px; background: #fff; color: #3a3d40; font-size: 13px; }
+.processing-status button:disabled { opacity: .6; cursor: wait; }
+.processing-status small { flex-basis: 100%; }

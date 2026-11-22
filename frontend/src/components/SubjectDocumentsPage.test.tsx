@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { expect, test, vi } from 'vitest'
 import SubjectDocumentsPage from './SubjectDocumentsPage'
 vi.mock('./PdfViewer', () => ({ default: ({ documentId }: { documentId: number }) => <div data-testid="viewer">PDF {documentId}</div> }))
+vi.mock('./DocumentProcessingStatus', () => ({ default: () => null }))
 vi.mock('./UploadDialog', () => ({ default: ({ onUploaded }: { onUploaded: () => void }) => <button onClick={onUploaded}>모의 업로드 완료</button> }))
 
 const docs = [
