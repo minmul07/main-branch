@@ -1,6 +1,6 @@
 # Docker 개발 환경
 
-React/Vite와 FastAPI/Uvicorn을 개발 서버로 실행합니다. 운영용 배포 구성이 아니며, 현재 화면은 `App` 제목만 표시합니다. PDF 업로드 원본은 backend의 `/data/uploads`에 저장합니다. #31 OCR 구현에 앞서 backend 이미지에는 `tesseract-ocr`, `tesseract-ocr-eng`, `tesseract-ocr-kor`와 Python 패키지 `pypdfium2`, `pillow`가 포함되어 있으며, OCR 실행 파이프라인은 후속 작업에서 연결합니다.
+React/Vite와 FastAPI/Uvicorn을 개발 서버로 실행합니다. 운영용 배포 구성이 아니며, 현재 화면은 `App` 제목만 표시합니다. PDF 업로드 원본은 backend의 `/data/uploads`에 저장합니다. backend 이미지에는 OCR(#31)에 쓰는 `tesseract-ocr`, `tesseract-ocr-eng`, `tesseract-ocr-kor`와 Python 패키지 `pypdfium2`, `pillow`가 포함되어 있어, 업로드한 스캔 PDF는 컨테이너 안에서 바로 OCR됩니다.
 
 ## 실행과 종료
 
@@ -48,7 +48,8 @@ Docker 없이 frontend를 실행할 때 사용하는 `frontend/.env.local`과 �
 - backend는 `backend/`를 읽기 전용 bind mount하고 Uvicorn `--reload`로 변경을 반영합니다.
 - frontend는 `src/`, `index.html`, `vite.config.ts`를 읽기 전용 bind mount합니다. 소스는 Vite HMR로 반영되며 Vite 설정 변경 시 개발 서버가 재시작됩니다.
 - 컨테이너에서 생성한 `.venv`와 `node_modules`는 호스트와 공유하지 않습니다. Python 3.14와 uv 0.11.1, Node 22 최신 패치 계열 이미지를 사용하며 `uv.lock`과 `package-lock.json`으로 의존성을 설치합니다.
-- backend 이미지는 `tesseract-ocr`, `tesseract-ocr-eng`, `tesseract-ocr-kor` 시스템 패키지와 `pypdfium2`, `pillow` Python 패키지를 포함합니다.
+- backend 이미지는 `tesseract-ocr`, `tesseract-ocr-eng`, `tesseract-ocr-kor` 시스템 패키지와 `pypdfium2`, `pillow` Python 패키지를 포함합니다. OCR 언어 `OCR_LANGUAGES`는 Compose에서 전달하지 않으므로 기본값 `kor+eng`를 사용합니다. 다른 언어를 쓰려면 Dockerfile에 언어 데이터 패키지를 추가하고 Compose `environment`에 값을 지정해야 합니다.
+- OCR은 페이지를 300 DPI로 렌더링하므로 페이지당 약 9MB 메모리와 CPU를 씁니다. 스캔 페이지가 많은 자료는 처리 시간이 페이지 수에 비례해 늘어납니다.
 - frontend 이미지의 `npm ci`는 PDF.js 배포 패키지 `pdfjs-dist`도 설치합니다. 의존성 변경 후 이미지를 다시 빌드해야 적용됩니다.
 - 의존성, 잠금 파일, TypeScript 설정, Dockerfile을 변경하면 `docker compose up --build`로 다시 빌드합니다. 이후 frontend에 `public/` 등 새로운 소스 디렉터리를 추가하면 mount 설정도 함께 추가해야 합니다.
 

@@ -164,6 +164,7 @@ Subject
 | `document_id` | 정수, `documents.id` FK | 소속 자료 |
 | `page_number` | 정수, `> 0` | 원본 PDF의 물리 페이지 순서. 1부터 시작한다. |
 | `text` | `Text` 또는 `NULL` | 페이지 텍스트. 의미는 아래와 같다. |
+| `ocr_text` | `Text` 또는 `NULL` | `image` 페이지의 OCR 결과(#31). `NULL`은 OCR하지 않은 페이지, 빈 문자열은 OCR했지만 글자를 찾지 못한 페이지다. |
 
 - `(document_id, page_number)`에 unique 제약(`uq_pages_document_page_number`)을 두어 같은 자료의 페이지 번호 중복을 DB에서 막는다. 이 제약의 인덱스가 자료별 조회에도 쓰이므로 `document_id` 단독 인덱스는 두지 않는다. 다른 자료끼리는 같은 페이지 번호를 쓸 수 있다.
 - `text`가 `NULL`이면 아직 텍스트를 얻지 않은(추출·OCR 전) 페이지이고, 빈 문자열이면 처리했지만 텍스트가 없는 페이지다. OCR 후보와 문서의 처리 상태는 별도 `document_processing` 행에 기록한다. [PDF 처리 문서](PDF_PROCESSING.md)
@@ -178,7 +179,7 @@ Subject
 
 ### 기존 DB 업그레이드
 
-`init_db`는 기존 행과 PDF 파일을 유지하면서 `pages`와 `document_processing` 등 누락된 테이블을 추가하고, 작업이 없는 자료를 대기열에 등록한다. Docker 컨테이너는 시작할 때 자동으로 실행하고, Docker 없이 실행할 때는 저장소 루트에서 `uv run python -m backend.app.init_db`를 실행한다. 기존 테이블의 컬럼을 바꿔야 하는 변경이 생기면 `create_all`로는 반영되지 않으므로 별도 업그레이드 절차가 필요하다.
+`init_db`는 기존 행과 PDF 파일을 유지하면서 `pages`와 `document_processing` 등 누락된 테이블을 추가하고, 작업이 없는 자료를 대기열에 등록한다. Docker 컨테이너는 시작할 때 자동으로 실행하고, Docker 없이 실행할 때는 저장소 루트에서 `uv run python -m backend.app.init_db`를 실행한다. 기존 테이블의 컬럼을 바꿔야 하는 변경이 생기면 `create_all`로는 반영되지 않으므로 별도 업그레이드 절차가 필요하다. #31의 `pages.ocr_text`는 `init_db`가 컬럼이 없을 때만 `ALTER TABLE pages ADD COLUMN ocr_text TEXT`로 추가하며, 기존 행은 `NULL`(OCR 안 함)이 된다.
 
 ## 구현된 페이지 텍스트 추출 서비스
 
@@ -204,10 +205,10 @@ Subject
 | 후속 작업 | 현재 상태와 연결 지점 |
 | --- | --- |
 | 페이지 텍스트 추출·처리 상태·재시도 | 업로드 후 백엔드 작업 스레드에서 실행한다. [PDF 처리 문서](PDF_PROCESSING.md) |
-| OCR 및 상태 UI | 후속 기능은 `document_processing`의 상태와 페이지 유형을 활용할 수 있다. [API 계약](API.md#처리-상태와-재시도-30) |
+| OCR 및 상태 UI | 구현(#31). 작업 스레드가 `image` 페이지를 OCR해 `Page.ocr_text`에 저장한다. 자료 목록은 처리 상태 API로 대기·처리 중·실패 원인을 표시하고 재시도를 요청한다. [PDF 처리 문서](PDF_PROCESSING.md#ocr-31) |
 | FTS5 검색 | 미구현. Page 텍스트가 생긴 뒤 색인한다. |
 | Subject·Document 삭제 | `services/deletion.py`가 `BEGIN IMMEDIATE`로 삭제를 직렬화하고 Repository의 단건 삭제·flush 및 commit/rollback을 관리한다. 과목은 자료가 있으면 409로 거부한다. 자료는 원본을 격리한 뒤 행을 commit하고 격리 파일을 제거한다. 실패·강제 종료·수동 복구 정책은 [API.md](API.md#파일-실패와-복구)를 따른다. 자료마다 Note → Page → Document 순으로 같은 트랜잭션에서 삭제한다. |
-| frontend 연결·PDF.js 뷰어 | 미구현(#19, #22). frontend는 `/documents` API를 호출하고 PDF.js는 `GET /documents/{id}/file`을 읽는다. CORS는 `CORS_ALLOWED_ORIGINS`로 허용하고 `Content-Disposition`을 노출한다. |
+| frontend 연결·PDF.js 뷰어 | 구현(#19, #22). frontend는 `/documents` API를 호출하고 PDF.js는 `GET /documents/{id}/file`을 읽는다. CORS는 `CORS_ALLOWED_ORIGINS`로 허용하고 `Content-Disposition`을 노출한다. |
 | 중복 업로드 판별 | 하지 않는다. 같은 파일도 별도 Document로 저장한다. |
 | 남은 파일 자동 정리 | 하지 않는다. 강제 종료 시 남은 파일의 수동 정리 기준은 위 [한계와 정리 방침](#한계와-정리-방침)을 따른다. |
 

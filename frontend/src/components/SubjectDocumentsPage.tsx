@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 're
 import { listDocuments } from '../documentsApi'
 import UploadDialog from './UploadDialog'
 import DeleteDialog from './DeleteDialog'
+import DocumentProcessingStatus from './DocumentProcessingStatus'
 import type { MockDocument } from '../types'
 import type { Subject } from '../types'
 
@@ -142,6 +143,7 @@ function SubjectDocumentsPage({
                     <button type="button" aria-label={`${document.filename} 삭제`} onClick={(event) => { deleteFocus.current = event.currentTarget.parentElement?.previousElementSibling as HTMLElement; setOpenMenuId(null); setDeleting(document) }}>삭제</button>
                   </div>}
                 </div>
+                <DocumentProcessingStatus documentId={document.id} filename={document.filename} onCompleted={() => { refreshDocuments().catch(() => {}) }} />
               </li>
             ))}
           </ul>

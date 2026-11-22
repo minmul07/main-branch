@@ -93,6 +93,15 @@ uv run pytest
 - 기존 스키마에서 `init_db`를 반복 실행해 대기열을 추가하되 자료·텍스트·메모·기존 작업 상태를 유지하는지 확인합니다.
 - Windows Python 3.14.7에서 백엔드 pytest 247개가 통과했습니다. 별도 임시 DB와 Uvicorn 프로세스로 실행 중 강제 종료 후 `interrupted` 전환, 대기 작업 자동 처리, 수동 재시도와 원본 Range `206`을 확인했습니다.
 
+### 스캔 PDF OCR (`backend/tests/test_ocr.py`)
+
+- `conftest.py`의 `fake_ocr`가 모든 테스트에서 OCR을 빈 결과로 대신한다. 그래서 `tesseract`가 없는 PC에서도 기존 테스트가 돈다. 실제 `tesseract`가 필요한 테스트에는 `@mark.real_ocr`를 붙이고, `tesseract`나 `OCR_LANGUAGES` 언어 데이터가 없으면 건너뛴다(`pytest -rs`로 확인). CI와 Docker에는 `tesseract`가 있어 실제로 실행된다.
+- 인식 함수: OCR 대상 페이지가 없으면 `tesseract`를 찾지 않아야 한다. 실행 파일 없음·언어 데이터 없음은 `OcrUnavailableError`, 비정상 종료·시간 초과·열 수 없는 PDF는 `OcrFailedError`여야 한다. 끝의 폼 피드와 공백만 있는 결과는 정규화해야 한다. 글자를 그린 이미지만 있는 스캔 PDF를 실제 `tesseract`로 인식한다.
+- 처리 흐름: 텍스트·이미지·빈·이미지 페이지가 섞인 PDF에서 `image` 페이지만 OCR에 넘기고, 결과는 `ocr_text`에만 저장하며 `text`는 바꾸지 않아야 한다. `mixed`·`text` 페이지는 OCR하지 않는다.
+- 실패와 재시도: OCR 없음·실패 시 `ocr_unavailable`·`ocr_failed`로 실패하고 페이지를 쓰지 않아야 한다. 재시도 API `202` 후 완료와 OCR 결과 저장을 확인한다. 한 자료의 OCR 실패가 다른 자료 처리에 영향을 주지 않아야 한다.
+- 실제 lifespan 작업 스레드로 스캔 PDF를 업로드해 `completed`, `page_kinds: ["image"]`, 인식된 `ocr_text`를 확인한다.
+- `ocr_text`가 없는 #31 이전 `pages` 테이블에서 `init_db`를 두 번 실행해 컬럼이 추가되고 기존 텍스트가 유지되는지 확인한다.
+
 ### PDF 업로드 서비스 (`backend/tests/test_document_service.py`)
 
 - 임시 SQLite와 `tmp_path` 아래 업로드 디렉터리를 사용하며 개발용 DB·`backend/uploads`를 건드리지 않습니다. 테스트 PDF는 `backend/tests/pdf_samples.py`가 코드로 생성합니다(텍스트 PDF, 이미지만 있는 스캔 PDF, 여러 페이지, 암호화, 0페이지).
@@ -150,6 +159,7 @@ uv run pytest
 
 - 과목 삭제 팝업은 `document_count`로 즉시 분기하고, 팝업을 열 때 fetch 호출과 자료 확인용 로딩이 없는지 검증합니다. 빈 과목은 일반 확인, 자료가 있으면 과목명 입력을 즉시 표시합니다. 정확한 이름만 허용하고 앞뒤 공백·다른 이름은 거부하며 대상 이름은 굵게 표시합니다. 오래된 0건으로 삭제 시 409를 받으면 이름 입력으로 전환하고 정확한 이름으로 재시도합니다. 백엔드는 목록 조회 이후 업로드 시에도 이름 누락·불일치에 409로 보존, 이름 일치 시 모든 자료·원본 삭제와 다른 과목 보존, 중간 실패 시 전체 원본 복원을 검증합니다.
 
+- 자료 처리 상태(#31, `DocumentProcessingStatus.test.tsx`): 완료 자료는 아무것도 표시하지 않고, 대기·처리 중에는 2초 간격으로 다시 조회하다 완료되면 조회를 멈추고 목록 갱신을 한 번만 요청해야 합니다. 실패 코드별 원인 문구와 알 수 없는 코드의 기본 문구를 확인합니다. 재시도 요청 중 버튼 비활성화와 중복 클릭 무시, `202` 후 재조회, `409` 시 현재 상태 재조회, `500` 시 안내 후 버튼 재활성화, 상태 조회 실패 시 "다시 확인", 삭제된 자료(`404`)는 표시하지 않음을 모의 API로 확인합니다. `SubjectDocumentsPage.test.tsx`는 기존 fetch 순서를 유지하도록 이 컴포넌트를 모의합니다.
 - PDF 가로·세로 스크롤바의 위치 갱신과 마지막 스크롤 후 1초 뒤 자동 숨김을 확인합니다.
 - 자료 목록을 접고 펼칠 때 버튼 상태, 키보드 초점과 목록 복원을 확인합니다.
 - 과목 페이지 진입·복귀에 따라 화면 높이 전용 레이아웃이 적용되는지 확인합니다. 실제 화면에서는 긴 자료 목록이 페이지 전체가 아닌 목록 안에서 스크롤되는지 확인합니다.
@@ -261,3 +271,14 @@ docker compose run --rm --no-deps frontend npm run lint
 - Windows Python 3.14.7 (`uv 0.13.9`): `uv sync --locked` 후 `pypdfium2==5.15.2`·`pillow==13.0.0` 스모크 테스트(`text_pdf("Hello OCR")` → PNG `(1224, 1584)`, 15,584바이트)와 `uv run --locked pytest` 254개(기존 Starlette/httpx 사용 중단 예정 경고 1건) 통과를 확인했습니다. (단, Windows 샌드박스 내부에서는 `TestClient` 루프백 소켓 제약으로 인해 `TestClient` 비포함 테스트인 `test_text_extraction.py` 15개만 통과하고, 전체 254개는 일반 권한 실행에서 통과 확인)
 - Docker (`python:3.14-slim-bookworm`, `uv:0.11.1`, Python 3.14.10): `docker compose config --quiet` 및 `docker compose build backend` 통과. 컨테이너 내부에서 `tesseract 5.3.0`(`leptonica-1.82.0`), 사용 가능 언어(`eng`, `kor`, `osd`), `pypdfium2` → `Pillow` → `tesseract stdin stdout -l eng` / `-l kor+eng` 스모크 테스트(`"Operating Systems"` 인식), 그리고 `docker compose run --rm --no-deps backend uv run --locked pytest` 254개(기존 경고 1건) 통과를 확인했습니다.
 - 호스트 Windows `tesseract` 바이너리 실행, macOS 실행, 실제 한국어 스캔 이미지 OCR, GitHub Actions CI 실행, 그리고 #31 본 작업(OCR 서비스·상태 UI)은 이번 단계에서 수행하지 않았습니다.
+
+## 직접 검증 기록: #31 OCR 처리와 상태 UI (2026-11-22)
+
+- Linux Python 3.14 (`uv sync --locked`), Tesseract 5.3.4(`kor`, `eng`): `uv run pytest` 269개 통과(기존 Starlette/httpx 경고 1건). `OCR_LANGUAGES=zzz`로 언어 데이터가 없는 환경을 흉내 내면 `real_ocr` 테스트 2개만 건너뛰고 267개가 통과했다.
+- Node 22.23.5: `npm test` 56개, `npm run build`, `npm run lint` 통과.
+- 실제 서버(Uvicorn, 임시 DB): Noto Sans CJK로 만든 한국어·영어 2페이지 스캔 PDF를 업로드해 `completed`, `page_kinds: ["image", "image"]`를 확인했다. 2쪽 "페이지 교체 알고리즘 LRU"와 1쪽 둘째 줄 "상호 배제, 점유 대기, 비선점, 순환 대기"는 정확히 인식했다. 1쪽 첫 줄 "3주차 교착 상태(Deadlock)"는 기본 레이아웃 판별(`--psm 3`)에서 깨졌다([PDF 처리 문서](PDF_PROCESSING.md#ocr-31)의 한계 참고).
+- `OCR_LANGUAGES=kor+zzz`로 서버를 실행하면 같은 PDF가 `failed`(`ocr_unavailable`)가 되었다. 기본 언어로 서버를 다시 시작해 재시도 `202` 후 `completed`와 `ocr_text` 저장을 확인했다. 텍스트 PDF는 같은 조건에서도 `completed`였다.
+- 실제 브라우저(Chrome, Vite 개발 서버): 자료 목록에 "처리 실패: 서버에서 OCR을 사용할 수 없습니다."와 "다시 처리" 버튼이 표시되었다. 버튼을 누르면 "처리 대기 중"으로 바뀌었고, 완료 후 상태 표시가 사라졌다. 점 3개 메뉴 위치는 유지되었다.
+- Windows Docker Desktop(`docker compose up --build`): 컨테이너 안 `uv run --locked pytest -rs` 269개 통과(`real_ocr` 포함, 건너뜀 없음). 같은 한국어·영어 스캔 PDF를 브라우저에서 업로드해 `completed`, `page_kinds: ["image", "image"]`를 확인했다. `/data/app.db`의 `ocr_text`에서 2쪽과 1쪽 둘째 줄은 정확히 인식되었고, 1쪽 첫 줄은 일부 깨졌다(`tEH (Deadlock)`, `3주차 교착`).
+- Windows 호스트(Python 3.14.10): `uv run pytest` 267개 통과, `real_ocr` 2개 건너뜀(호스트에 `tesseract` 없음).
+- 미검증: Windows·macOS 호스트에서 `tesseract` 직접 실행, 실제 강의 스캔본의 인식 정확도, GitHub Actions 실행.
