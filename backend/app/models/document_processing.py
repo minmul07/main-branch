@@ -18,6 +18,8 @@ class ProcessingErrorCode(StrEnum):
     INVALID_PDF = "invalid_pdf"
     PROCESSING_ERROR = "processing_error"
     INTERRUPTED = "interrupted"
+    OCR_UNAVAILABLE = "ocr_unavailable"
+    OCR_FAILED = "ocr_failed"
 
 
 class PageKind(StrEnum):

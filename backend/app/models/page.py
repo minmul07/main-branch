@@ -18,3 +18,5 @@ class Page(Base):
     page_number: Mapped[int] = mapped_column(nullable=False)
     # NULL은 아직 텍스트를 얻지 않은 페이지, 빈 문자열은 처리했지만 텍스트가 없는 페이지다.
     text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # OCR 결과(#31). NULL은 OCR하지 않은 페이지, 빈 문자열은 OCR했지만 글자를 찾지 못한 페이지다.
+    ocr_text: Mapped[str | None] = mapped_column(Text, nullable=True)

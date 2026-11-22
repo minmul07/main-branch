@@ -13,6 +13,8 @@ from backend.app.models.document_processing import (
     ProcessingErrorCode,
     ProcessingStatus,
 )
+from backend.app.repositories import page as page_repository
+from backend.app.services import ocr
 from backend.app.services.deletion import original_file_lock
 from backend.app.services.documents import get_document_file_path
 from backend.app.services.text_extraction import (
@@ -86,6 +88,7 @@ def _finish_processing(
     engine: Engine,
     claimed_document: Document,
     result: list[tuple[str, PageKind]] | ProcessingErrorCode,
+    ocr_texts: dict[int, str] | None = None,
 ) -> None:
     with Session(engine) as session, session.begin():
         # 삭제와 직렬화하여 원본이 읽힌 뒤 삭제된 자료의 결과를 다시 쓰지 않는다.
@@ -103,6 +106,10 @@ def _finish_processing(
             save_document_page_texts(
                 session, document, [page_text for page_text, _ in result], preserve_existing_text=True
             )
+            for page_number, ocr_text in (ocr_texts or {}).items():
+                page_repository.set_page_ocr_text(
+                    session, document_id=document.id, page_number=page_number, ocr_text=ocr_text
+                )
             job.page_kinds = [kind.value for _, kind in result]
             job.status = ProcessingStatus.COMPLETED
 
@@ -115,10 +122,24 @@ def process_document(engine: Engine, document: Document, upload_dir: Path) -> No
                 raise FileNotFoundError
             original = BytesIO(path.read_bytes())
         results = read_pdf_page_results(original)
-        _finish_processing(engine, document, results)
+        # 텍스트 없이 이미지만 그리는 페이지만 OCR한다. mixed·unknown·blank는 기존 처리를 유지한다.
+        # OCR은 DB 연결과 파일 잠금 밖에서 실행하므로 오래 걸려도 업로드·삭제를 막지 않는다.
+        image_pages = [
+            page_number
+            for page_number, (_, kind) in enumerate(results, start=1)
+            if kind == PageKind.IMAGE
+        ]
+        ocr_texts = ocr.recognize_pages(original, image_pages)
+        _finish_processing(engine, document, results, ocr_texts)
         return
     except FileNotFoundError:
         error_code = ProcessingErrorCode.ORIGINAL_MISSING
+    except ocr.OcrUnavailableError:
+        error_code = ProcessingErrorCode.OCR_UNAVAILABLE
+        logger.error("OCR is unavailable: document_id=%s", document.id, exc_info=True)
+    except ocr.OcrFailedError:
+        error_code = ProcessingErrorCode.OCR_FAILED
+        logger.exception("OCR failed: document_id=%s", document.id)
     except InvalidPdfFileError:
         error_code = ProcessingErrorCode.INVALID_PDF
         logger.info("PDF processing failed: document_id=%s", document.id, exc_info=True)

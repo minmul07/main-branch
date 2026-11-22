@@ -21,6 +21,7 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["backend/tests"]
 pythonpath = ["."]
+markers = ["real_ocr: 실제 tesseract로 OCR한다. tesseract나 언어 데이터가 없으면 건너뛴다."]
 
 [tool.uv]
 package = false
