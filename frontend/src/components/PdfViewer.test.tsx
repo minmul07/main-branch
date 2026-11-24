@@ -1,17 +1,21 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, expect, test, vi } from 'vitest'
-import NotesPanel from './NotesPanel'
 import PdfViewer from './PdfViewer'
 
-const { getDocument, getPage, destroy, cancel } = vi.hoisted(() => ({
-  getDocument: vi.fn(), getPage: vi.fn(), destroy: vi.fn(), cancel: vi.fn(),
+const { getDocument, getPage, destroy, cancel, listDocumentNotes } = vi.hoisted(() => ({
+  getDocument: vi.fn(), getPage: vi.fn(), destroy: vi.fn(), cancel: vi.fn(), listDocumentNotes: vi.fn(),
 }))
 vi.mock('pdfjs-dist', () => ({ getDocument, GlobalWorkerOptions: {} }))
 vi.mock('pdfjs-dist/build/pdf.worker.min.mjs?url', () => ({ default: 'worker' }))
-vi.mock('../notesApi', () => ({ listNotes: () => Promise.resolve([]) }))
+vi.mock('../notesApi', () => ({ listDocumentNotes }))
+
+const note = (id: number, page: number, title: string) => ({
+  id, document_id: 7, page_number: page, title, content: `${title} 내용`,
+  created_at: '2026-11-24T01:00:00Z', updated_at: '2026-11-24T01:00:00Z',
+})
 
 function renderViewerWithNotes() {
-  return render(<PdfViewer documentId={7} renderNotes={(props) => <NotesPanel {...props} documentId={7} />} />)
+  return render(<PdfViewer documentId={7} showNotes />)
 }
 
 beforeEach(() => {
@@ -20,6 +24,7 @@ beforeEach(() => {
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({} as CanvasRenderingContext2D)
   getPage.mockResolvedValue({ getViewport: ({ scale }: { scale: number }) => ({ width: 100 * scale, height: 200 * scale }), render: () => ({ promise: Promise.resolve(), cancel }) })
   getDocument.mockReturnValue({ promise: Promise.resolve({ numPages: 2, getPage }), destroy })
+  listDocumentNotes.mockResolvedValue([])
 })
 
 test('loads the selected PDF, navigates pages, and releases it', async () => {
@@ -53,32 +58,59 @@ test('updates the current page when the viewer scrolls', async () => {
   expect((screen.getByRole('textbox', { name: '페이지 번호' }) as HTMLInputElement).value).toBe('2')
 })
 
-test('toggles the memo sidebar without reloading the PDF and follows the current page', async () => {
+test('shows page notes in a margin beside each page without reloading the PDF', async () => {
+  listDocumentNotes.mockResolvedValue([note(1, 2, '핵심 개념')])
   renderViewerWithNotes()
   const toggle = await screen.findByRole('button', { name: '메모' })
-  expect(toggle.getAttribute('aria-expanded')).toBe('false')
-  expect(screen.queryByRole('complementary', { name: '페이지 메모' })).toBeNull()
+  expect(toggle.getAttribute('aria-pressed')).toBe('false')
+  expect(await screen.findByRole('button', { name: '2페이지 메모 1개 보기' })).toBeTruthy()
+  expect(screen.queryByRole('button', { name: '1페이지 메모 1개 보기' })).toBeNull()
+  expect(screen.queryByRole('group', { name: '2페이지 메모' })).toBeNull()
 
   fireEvent.click(toggle)
-  const sidebar = screen.getByRole('complementary', { name: '페이지 메모' })
-  expect(toggle.getAttribute('aria-expanded')).toBe('true')
-  expect(toggle.getAttribute('aria-controls')).toBe(sidebar.id)
-  expect(sidebar.hasAttribute('inert')).toBe(false)
-  expect(within(sidebar).getByText('1페이지')).toBeTruthy()
-  await within(sidebar).findByText('이 페이지에는 메모가 없습니다.')
+  expect(toggle.getAttribute('aria-pressed')).toBe('true')
+  const first = screen.getByRole('group', { name: '1페이지 메모' })
+  const second = screen.getByRole('group', { name: '2페이지 메모' })
+  expect(within(second).getByRole('heading', { name: '핵심 개념' })).toBeTruthy()
+  expect(first.classList.contains('is-current')).toBe(true)
+  expect(screen.queryByRole('button', { name: '2페이지 메모 1개 보기' })).toBeNull()
 
   fireEvent.click(screen.getByRole('button', { name: '다음' }))
-  expect(within(sidebar).getByText('2페이지')).toBeTruthy()
+  expect(second.classList.contains('is-current')).toBe(true)
+  expect(first.classList.contains('is-current')).toBe(false)
 
   fireEvent.click(toggle)
-  expect(toggle.getAttribute('aria-expanded')).toBe('false')
-  expect(sidebar.hasAttribute('inert')).toBe(true)
-  expect(screen.queryByRole('complementary', { name: '페이지 메모' })).toBeNull()
+  expect(toggle.getAttribute('aria-pressed')).toBe('false')
+  expect(screen.queryByRole('group', { name: '2페이지 메모' })).toBeNull()
   expect((screen.getByRole('textbox', { name: '페이지 번호' }) as HTMLInputElement).value).toBe('2')
   expect(getDocument).toHaveBeenCalledTimes(1)
+  expect(listDocumentNotes).toHaveBeenCalledTimes(1)
 })
 
-test('preserves the reading position when the memo sidebar changes the fit width', async () => {
+test('opens the notes of a page from its badge', async () => {
+  listDocumentNotes.mockResolvedValue([note(1, 2, '핵심 개념'), note(2, 2, '예시')])
+  renderViewerWithNotes()
+  fireEvent.click(await screen.findByRole('button', { name: '2페이지 메모 2개 보기' }))
+  expect(screen.getByRole('button', { name: '메모' }).getAttribute('aria-pressed')).toBe('true')
+  expect((screen.getByRole('textbox', { name: '페이지 번호' }) as HTMLInputElement).value).toBe('2')
+  expect(document.activeElement).toBe(screen.getByRole('group', { name: '2페이지 메모' }))
+})
+
+test('sizes the notes margin to the viewer width between 240px and 320px', async () => {
+  const width = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get')
+  try {
+    width.mockReturnValue(1000)
+    renderViewerWithNotes()
+    fireEvent.click(await screen.findByRole('button', { name: '메모' }))
+    const content = screen.getByRole('region', { name: 'PDF 페이지' }).closest('.pdf-viewer-content') as HTMLElement
+    expect(content.style.getPropertyValue('--memo-inset')).toBe('320px')
+    expect(screen.queryByRole('separator')).toBeNull()
+  } finally {
+    width.mockRestore()
+  }
+})
+
+test('preserves the reading position when the notes margin changes the fit width', async () => {
   const observers: (() => void)[] = []
   vi.stubGlobal('ResizeObserver', class {
     constructor(callback: () => void) { observers.push(callback) }
@@ -99,16 +131,72 @@ test('preserves the reading position when the memo sidebar changes the fit width
     ) as DOMRect)
 
     fireEvent.click(screen.getByRole('button', { name: '메모' }))
-    width.mockReturnValue(220)
     act(() => { observers.forEach((measure) => measure()) })
 
-    expect(screen.getByLabelText('확대 배율').textContent).toBe('165%')
+    // The scroll area keeps its width; each page row reserves the margin (minimum 240px),
+    // so the fit width becomes 440 - 240 = 200px.
+    const content = area.closest('.pdf-viewer-content') as HTMLElement
+    expect(content.style.getPropertyValue('--memo-inset')).toBe('240px')
+    expect(screen.getByLabelText('확대 배율').textContent).toBe('150%')
     expect(HTMLElement.prototype.scrollTo).toHaveBeenLastCalledWith({ top: 570 })
-    await screen.findByText('이 페이지에는 메모가 없습니다.')
+
+    fireEvent.click(screen.getByRole('button', { name: '메모' }))
+    expect(content.style.getPropertyValue('--memo-inset')).toBe('0px')
+    expect(screen.getByLabelText('확대 배율').textContent).toBe('330%')
   } finally {
     width.mockRestore()
     vi.unstubAllGlobals()
   }
+})
+
+test('uses a bottom sheet for the current page on a compact viewer', async () => {
+  vi.stubGlobal('matchMedia', () => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() }))
+  listDocumentNotes.mockResolvedValue([note(1, 2, '핵심 개념')])
+  const width = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(440)
+  try {
+    renderViewerWithNotes()
+    await waitFor(() => expect(screen.getByLabelText('확대 배율').textContent).toBe('330%'))
+    const toggle = screen.getByRole('button', { name: '메모' })
+    const sheet = document.getElementById(toggle.getAttribute('aria-controls')!)!
+    expect(sheet.hasAttribute('inert')).toBe(true)
+
+    fireEvent.click(await screen.findByRole('button', { name: '2페이지 메모 1개 보기' }))
+    expect(sheet.hasAttribute('inert')).toBe(false)
+    expect(within(sheet).getByRole('heading', { name: '2페이지 메모' })).toBeTruthy()
+    expect(within(sheet).getByRole('heading', { name: '핵심 개념' })).toBeTruthy()
+    expect(document.querySelector('.pdf-page-margin')).toBeNull()
+    const content = sheet.closest('.pdf-viewer-content') as HTMLElement
+    expect(content.style.getPropertyValue('--memo-inset')).toBe('0px')
+    expect(screen.getByLabelText('확대 배율').textContent).toBe('330%')
+
+    fireEvent.click(within(sheet).getByRole('button', { name: '메모 닫기' }))
+    expect(sheet.hasAttribute('inert')).toBe(true)
+    expect(document.activeElement).toBe(toggle)
+  } finally {
+    width.mockRestore()
+    vi.unstubAllGlobals()
+  }
+})
+
+test('closes the notes with Escape, but Escape in the composer only closes the composer', async () => {
+  renderViewerWithNotes()
+  const toggle = await screen.findByRole('button', { name: '메모' })
+  fireEvent.click(toggle)
+  fireEvent.click(await screen.findByRole('button', { name: '1페이지에 메모 추가' }))
+  const draft = screen.getByRole('textbox', { name: '1페이지 새 메모' })
+  expect(document.activeElement).toBe(draft)
+  fireEvent.change(draft, { target: { value: '남겨 둘 내용' } })
+  fireEvent.keyDown(draft, { key: 'Escape' })
+  expect(toggle.getAttribute('aria-pressed')).toBe('true')
+  const add = screen.getByRole('button', { name: '1페이지에 메모 추가' })
+  expect(document.activeElement).toBe(add)
+
+  fireEvent.click(add)
+  expect((screen.getByRole('textbox', { name: '1페이지 새 메모' }) as HTMLTextAreaElement).value).toBe('남겨 둘 내용')
+  fireEvent.keyDown(screen.getByRole('textbox', { name: '1페이지 새 메모' }), { key: 'Escape' })
+  fireEvent.keyDown(screen.getByRole('button', { name: '1페이지에 메모 추가' }), { key: 'Escape' })
+  expect(toggle.getAttribute('aria-pressed')).toBe('false')
+  expect(document.activeElement).toBe(toggle)
 })
 
 test('offers retry when the PDF cannot be loaded', async () => {

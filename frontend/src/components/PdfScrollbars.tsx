@@ -4,7 +4,8 @@ import type { PointerEvent } from 'react'
 type Metrics = { clientWidth: number; clientHeight: number; scrollWidth: number; scrollHeight: number; left: number; top: number }
 const empty: Metrics = { clientWidth: 0, clientHeight: 0, scrollWidth: 0, scrollHeight: 0, left: 0, top: 0 }
 
-export default function PdfScrollbars({ area, content }: { area: HTMLElement | null; content: HTMLElement | null }) {
+// insetEnd is the width covered by an overlay on the right (the memo card); the bars stay beside it.
+export default function PdfScrollbars({ area, content, insetEnd = 0 }: { area: HTMLElement | null; content: HTMLElement | null; insetEnd?: number }) {
   const [metrics, setMetrics] = useState(empty)
   const [visible, setVisible] = useState(false)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -29,9 +30,10 @@ export default function PdfScrollbars({ area, content }: { area: HTMLElement | n
   const vertical = metrics.scrollHeight > metrics.clientHeight + 1
   const horizontal = metrics.scrollWidth > metrics.clientWidth + 1
   const trackY = Math.max(0, metrics.clientHeight - 24 - (horizontal ? 8 : 0))
-  const trackX = Math.max(0, metrics.clientWidth - 24 - (vertical ? 8 : 0))
+  const visibleWidth = Math.max(0, metrics.clientWidth - insetEnd)
+  const trackX = Math.max(0, visibleWidth - 24 - (vertical ? 8 : 0))
   const thumbY = Math.min(trackY, Math.max(24, trackY * metrics.clientHeight / (metrics.scrollHeight || 1)))
-  const thumbX = Math.min(trackX, Math.max(24, trackX * metrics.clientWidth / (metrics.scrollWidth || 1)))
+  const thumbX = Math.min(trackX, Math.max(24, trackX * visibleWidth / (metrics.scrollWidth || 1)))
   const y = (metrics.top / (metrics.scrollHeight - metrics.clientHeight || 1)) * (trackY - thumbY)
   const x = (metrics.left / (metrics.scrollWidth - metrics.clientWidth || 1)) * (trackX - thumbX)
 

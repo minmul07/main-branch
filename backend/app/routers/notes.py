@@ -25,6 +25,14 @@ def ensure_page_exists(db: Session, document_id: int, page: int) -> None:
         raise HTTPException(status_code=404, detail="Page not found")
 
 
+@router.get("/documents/{document_id}/notes", response_model=list[NoteRead])
+def list_document_notes(document_id: DocumentId, db: Session = Depends(get_db)) -> list[NoteRead]:
+    if document_repository.get_document(db, document_id) is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    notes = note_repository.list_notes_by_document(db, document_id)
+    return [NoteRead.model_validate(note) for note in notes]
+
+
 @router.get("/documents/{document_id}/pages/{page}/notes", response_model=list[NoteRead])
 def list_notes(
     document_id: DocumentId, page: PageNumber, db: Session = Depends(get_db)

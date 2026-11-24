@@ -11,11 +11,17 @@ export async function listNotes(documentId: number, page: number, signal: AbortS
   return response.json()
 }
 
-export async function createNote(documentId: number, page: number): Promise<Note> {
+export async function listDocumentNotes(documentId: number, signal: AbortSignal): Promise<Note[]> {
+  const response = await fetch(`${API_BASE_URL}/documents/${documentId}/notes`, { signal })
+  if (!response.ok) throw new Error(`HTTP ${response.status}`)
+  return response.json()
+}
+
+export async function createNote(documentId: number, page: number, content = ''): Promise<Note> {
   const response = await fetch(pageNotesUrl(documentId, page), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({}),
+    body: JSON.stringify(content ? { content } : {}),
   })
   if (!response.ok) throw new Error(`HTTP ${response.status}`)
   return response.json()

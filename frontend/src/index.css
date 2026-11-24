@@ -45,24 +45,23 @@ button:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visibl
 .subject-page-header h1, .subject-not-found h1 { overflow: hidden; margin: 0; font-size: 26px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
 .subject-page-back { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 0 14px; border: 0; border-radius: 12px; background: #f0eeee; white-space: nowrap; }
 .subject-page-back:hover { background: #e5e3e3; }
-.subject-page-layout { display: grid; flex: 1; min-height: 0; grid-template-columns: 320px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); align-items: start; gap: 24px; transition: grid-template-columns 250ms ease, gap 250ms ease; }
+.subject-page-layout { --list-width: clamp(240px, calc(100vw - 514px), 320px); display: grid; flex: 1; min-height: 0; grid-template-columns: var(--list-width) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); align-items: start; gap: 24px; transition: grid-template-columns 250ms ease, gap 250ms ease; }
 .subject-page-layout.sidebar-collapsed { grid-template-columns: 0 minmax(0, 1fr); gap: 0; }
 .document-sidebar-container { position: relative; z-index: 2; min-width: 0; height: 100%; }
 .document-sidebar-container::before { content: ''; position: absolute; top: 0; left: 0; width: var(--sidebar-width, 320px); height: var(--sidebar-height, 140px); box-sizing: border-box; border: 1px solid #dedcdc; border-radius: 24px; background: #f7f6f6; pointer-events: none; transition: width 250ms ease, height 250ms ease; }
-.sidebar-collapsed .document-sidebar-container::before { width: 48px; height: 48px; }
-.document-sidebar-container .document-sidebar { width: 320px; transition: opacity 180ms ease 70ms, visibility 0s; }
+.sidebar-collapsed .document-sidebar-container::before { width: 116px; height: 48px; }
+.document-sidebar-container .document-sidebar { width: var(--list-width); transition: opacity 180ms ease 70ms, visibility 0s; }
 .sidebar-collapsed .document-sidebar { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 180ms ease, visibility 0s linear 180ms; }
-.sidebar-show { position: absolute; top: 0; left: 0; display: grid; place-items: center; width: 48px; height: 48px; padding: 0; border: 0; border-radius: 50%; background: transparent; font-size: 28px; opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 180ms ease, visibility 0s linear 180ms; }
+.sidebar-show { position: absolute; top: 0; left: 0; display: flex; align-items: center; justify-content: center; gap: 6px; width: 116px; height: 48px; padding: 0; border: 0; border-radius: 24px; background: transparent; font-size: 15px; opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 180ms ease, visibility 0s linear 180ms; }
 .sidebar-collapsed .sidebar-show { opacity: 1; visibility: visible; pointer-events: auto; transition: opacity 180ms ease 100ms; }
-.sidebar-morph-icon { position: absolute; top: 29px; left: 29px; width: 20px; height: 20px; pointer-events: none; transition: top 250ms ease, left 250ms ease, width 250ms ease, height 250ms ease; }
-.sidebar-morph-arrow { transform-origin: 14.5px 12px; transition: transform 250ms ease; }
-.sidebar-collapsed .sidebar-morph-icon { top: 13px; left: 13px; width: 22px; height: 22px; }
-.sidebar-collapsed .sidebar-morph-arrow { transform: scaleX(-1); }
+.sidebar-morph-icon { display: block; width: 20px; height: 20px; margin: auto; pointer-events: none; }
+.sidebar-show .sidebar-morph-icon { margin: 0; }
+.sidebar-show .sidebar-morph-arrow { transform-origin: 14.5px 12px; transform: scaleX(-1); }
 .document-details { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; }
 .document-details h2, .document-sidebar h2 { margin: 0 0 20px; font-size: 18px; font-weight: 600; }
 .document-placeholder { display: grid; flex: 1; place-items: center; margin: 0; padding: 20px; color: #74777c; text-align: center; }
 .document-titlebar { display: flex; align-items: center; gap: 12px; min-width: 0; min-height: 48px; margin-bottom: 12px; transition: padding-left 250ms ease; }
-.sidebar-collapsed .document-titlebar { padding-left: 60px; }
+.sidebar-collapsed .document-titlebar { padding-left: 128px; }
 .document-details .document-titlebar h2 { overflow: hidden; margin: 0; text-overflow: ellipsis; white-space: nowrap; }
 .document-viewer-box { display: flex; flex: 1; min-height: 0; overflow: hidden; border: 1px solid #dedcdc; border-radius: 24px; background: #fff; }
 .document-info { position: relative; flex: none; margin-left: auto; }
@@ -80,30 +79,31 @@ button:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visibl
 .pdf-toolbar button svg { display: block; width: 20px; height: 20px; }
 .pdf-toolbar .pdf-memo-toggle { border-radius: 10px; transition: background-color 180ms ease; }
 .pdf-memo-toggle:hover { background: #e5e3e3; }
-.pdf-toolbar .pdf-memo-toggle[aria-expanded='true'] { background: #e1edfb; color: #195b9d; }
-.pdf-page-area button { padding: 6px 12px; border: 1px solid #dedcdc; border-radius: 8px; background: white; }
+.pdf-toolbar .pdf-memo-toggle[aria-pressed='true'] { background: #e1edfb; color: #195b9d; }
+.pdf-page-area [role='alert'] button { padding: 6px 12px; border: 1px solid #dedcdc; border-radius: 8px; background: white; }
 .pdf-toolbar button:disabled { opacity: .45; }
 .pdf-toolbar input { width: 4em; padding: 6px; border: 1px solid #dedcdc; border-radius: 8px; text-align: center; }
 .pdf-toolbar .zoom-value { width: 4em; font-size: 14px; }
-.pdf-viewer-content { position: relative; display: grid; flex: 1; min-height: 0; grid-template-columns: minmax(0, 1fr) 0%; grid-template-rows: minmax(0, 1fr); overflow: hidden; transition: grid-template-columns 250ms ease; }
-.pdf-viewer-content.memo-sidebar-open { grid-template-columns: minmax(0, 1fr) 50%; }
-.pdf-scroll-wrapper { position: relative; display: flex; min-width: 0; min-height: 0; }
-.pdf-memo-sidebar { min-width: 0; overflow: hidden; visibility: hidden; background: #f7f6f6; box-shadow: inset 1px 0 #dedcdc; transition: visibility 0s linear 250ms; }
-.memo-sidebar-open .pdf-memo-sidebar { visibility: visible; transition-delay: 0s; }
-.pdf-memo-content { display: flex; flex-direction: column; min-width: 210px; height: 100%; opacity: 0; transition: opacity 180ms ease; }
-.memo-sidebar-open .pdf-memo-content { opacity: 1; transition-delay: 70ms; }
-.pdf-memo-content header { display: flex; flex: none; justify-content: space-between; align-items: center; gap: 12px; margin: 0 16px; padding: 12px 0; border-bottom: 1px solid #dedcdc; }
-.pdf-memo-title { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 12px; }
-.pdf-memo-content h3 { margin: 0; font-size: 16px; font-weight: 600; }
-.pdf-memo-title span, .pdf-memo-status { color: #62666b; font-size: 14px; }
-.pdf-memo-add { flex: none; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 10px; background: #a3d3ff; font-size: 24px; line-height: 1; }
-.pdf-memo-page { flex: 1; min-height: 0; overflow: auto; padding: 14px 16px 18px; }
+/* Page notes sit in a margin beside each page (like document comments) and scroll with it. */
+.pdf-viewer-content { position: relative; display: flex; flex: 1; min-height: 0; overflow: hidden; }
+.pdf-scroll-wrapper { position: relative; display: flex; flex: 1; min-width: 0; min-height: 0; }
+.pdf-memo-status { color: #62666b; font-size: 14px; }
 .pdf-memo-status { margin: 16px 0; text-align: center; }
 .pdf-memo-feedback { margin: 0 0 12px; }
-.pdf-memo-content [role='alert'] { color: #b3261e; font-size: 14px; }
+.page-notes [role='alert'] { color: #b3261e; font-size: 14px; }
 .pdf-memo-list { display: grid; gap: 10px; padding: 0; margin: 0; list-style: none; }
 .note-item { display: grid; gap: 10px; padding: 12px; border: 1px solid #dedcdc; border-radius: 14px; background: #fff; }
-.note-item-header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; }
+.note-item-header { display: flex; justify-content: space-between; align-items: center; gap: 4px; }
+.note-item-header h4 { flex: 1; font-size: 15px; }
+.note-item-menu { position: relative; flex: none; margin: -4px -6px -4px 0; }
+.note-item-menu-toggle { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: #62666b; font-size: 18px; }
+.note-item-menu-toggle:hover:enabled, .note-item-menu-toggle[aria-expanded='true'] { background: #e5e3e3; }
+.note-item-menu-content { position: absolute; z-index: 4; top: calc(100% + 4px); right: 0; display: grid; min-width: 112px; padding: 6px; border: 1px solid #dedcdc; border-radius: 12px; background: #fff; box-shadow: 0 4px 16px #20212424; }
+.note-item-menu-content button { padding: 8px 12px; border: 0; border-radius: 8px; background: transparent; color: #202124; font-size: 14px; text-align: left; }
+.note-item-menu-content button:hover { background: #f0eeee; }
+.note-item-menu-content button.danger { color: #b3261e; }
+.note-item-menu-content button.danger:hover { background: #fce8e6; }
+.pdf-page-margin:has([aria-expanded='true']) { z-index: 3; }
 .note-item h4, .note-item-body { min-width: 0; margin: 0; overflow-wrap: anywhere; }
 .note-item-body { font-size: 14px; line-height: 1.55; white-space: pre-wrap; }
 .note-item-editor, .note-item-editor label { display: grid; gap: 6px; min-width: 0; }
@@ -115,16 +115,49 @@ button:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visibl
 .note-item-actions button, .pdf-memo-feedback button { padding: 6px 10px; border: 0; border-radius: 8px; background: #f0eeee; color: #202124; font-size: 13px; }
 .note-item-actions button:hover, .pdf-memo-feedback button:hover { background: #e5e3e3; }
 .note-item-actions .note-primary-action { background: #a3d3ff; }
-.pdf-memo-add:hover:enabled, .note-item-actions .note-primary-action:hover:enabled { background: #8bc7ff; }
-.pdf-memo-content button:disabled { cursor: default; opacity: .5; }
+.note-item-actions .note-primary-action:hover:enabled { background: #8bc7ff; }
+.page-notes button:disabled { cursor: default; opacity: .5; }
 .pdf-page-area { position: relative; flex: 1; min-width: 0; min-height: 0; overflow: auto; padding: 20px; text-align: center; scrollbar-width: none; touch-action: pan-x pan-y; }
 .pdf-page-area::-webkit-scrollbar { display: none; }
 .pdf-page-area.pdf-fit-width { padding-left: 0; padding-right: 0; }
 .pdf-pages { width: max-content; min-width: 100%; }
-.pdf-page { margin: 0 auto 20px; background: white; box-shadow: 0 2px 10px #0002; }
+.pdf-page-row { display: grid; grid-template-columns: minmax(max-content, 1fr) var(--memo-inset, 0px); align-items: start; margin-bottom: 20px; }
+.has-notes-margin .pdf-page-area { padding-right: 0; }
+/* Horizontally sticky: when a zoomed page is wider than the viewer, its notes float over the page at the right edge. */
+.pdf-page-margin { position: sticky; z-index: 1; right: 0; min-width: 0; padding: 0 14px 0 10px; text-align: left; pointer-events: none; }
+.pdf-page-margin > * { pointer-events: auto; }
+.page-notes { display: grid; gap: 8px; outline: none; }
+.page-notes-margin .note-item { box-shadow: 0 1px 3px rgb(32 33 36 / 12%); transition: border-color 150ms ease, box-shadow 150ms ease; }
+.page-notes-margin.is-current .note-item { border-color: #a3c9ed; box-shadow: 0 2px 10px rgb(25 103 210 / 14%); }
+.page-notes:focus-visible { outline: 2px solid #1967d2; outline-offset: 4px; border-radius: 14px; }
+.page-notes-add { justify-self: start; display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; border: 1px dashed #b9b6b6; border-radius: 999px; background: rgb(255 255 255 / 85%); color: #3a3d40; font-size: 13px; opacity: 0; transition: opacity 150ms ease, background-color 150ms ease; }
+.page-notes-add:hover { background: #fff; border-color: #1967d2; color: #1967d2; }
+/* Shown only while the pointer is over the page row (or the button has keyboard focus); touch screens have no hover, so they always show it. */
+.pdf-page-row:hover .page-notes-add, .page-notes-add:focus-visible, .page-notes-sheet .page-notes-add { opacity: 1; }
+@media (hover: none) { .page-notes-add { opacity: 1; } }
+.page-notes-composer { display: grid; gap: 8px; padding: 12px; border: 1px solid #a3c9ed; border-radius: 14px; background: #fff; box-shadow: 0 2px 10px rgb(25 103 210 / 14%); }
+.page-notes-composer textarea { box-sizing: border-box; min-width: 0; width: 100%; padding: 8px; border: 1px solid #dedcdc; border-radius: 8px; font: inherit; font-size: 14px; color: inherit; resize: vertical; }
+.page-notes-composer textarea:focus-visible { outline: 2px solid #1967d2; outline-offset: 0; border-color: transparent; }
+.page-notes-margin .pdf-memo-status { margin: 0; padding: 8px 12px; border-radius: 12px; background: rgb(255 255 255 / 85%); text-align: left; }
+/* The badge shares the page's grid cell and sticks to the viewer's right edge when a zoomed page is wider than the viewer. */
+.pdf-page { position: relative; display: grid; }
+.pdf-page > * { grid-area: 1 / 1; }
+.pdf-page-note-badge { position: sticky; z-index: 1; right: 8px; justify-self: end; align-self: start; margin: 8px; display: inline-flex; align-items: center; gap: 4px; min-width: 28px; height: 28px; padding: 0 9px 0 7px; border: 0; border-radius: 999px; background: #fef7c3; color: #5c4a00; font-size: 13px; font-weight: 600; box-shadow: 0 2px 8px rgb(32 33 36 / 22%); }
+.pdf-page-note-badge svg { width: 15px; height: 15px; }
+.pdf-page-note-badge:hover { background: #fdeb8a; }
+.pdf-notes-sheet { position: absolute; z-index: 3; right: 8px; bottom: 8px; left: 8px; display: flex; flex-direction: column; max-height: 55%; visibility: hidden; border: 1px solid #dedcdc; border-radius: 20px; background: #f7f6f6; box-shadow: 0 -8px 32px rgb(32 33 36 / 22%); transform: translateY(calc(100% + 16px)); transition: transform 250ms ease, visibility 0s linear 250ms; }
+.has-notes-sheet .pdf-notes-sheet { visibility: visible; transform: none; transition-delay: 0s; }
+.pdf-notes-sheet::before { content: ''; align-self: center; flex: none; width: 36px; height: 4px; margin-top: 8px; border-radius: 999px; background: #c7c4c4; }
+.pdf-notes-sheet header { display: flex; flex: none; align-items: center; justify-content: space-between; gap: 12px; margin: 0 16px; padding: 6px 0 10px; border-bottom: 1px solid #dedcdc; }
+.pdf-notes-sheet h3 { margin: 0; font-size: 16px; font-weight: 600; }
+.pdf-notes-sheet header button { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #62666b; font-size: 22px; }
+.pdf-notes-sheet header button:hover { background: #e5e3e3; }
+.pdf-notes-sheet-body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 12px 16px 16px; }
+.has-notes-sheet .pdf-pages { padding-bottom: 55vh; }
+.pdf-page { margin: 0 auto; background: white; box-shadow: 0 2px 10px #0002; }
 .pdf-page canvas { display: block; width: 100%; height: auto; }
 .pdf-page canvas[hidden] { display: none; }
-.pdf-scrollbars { position: absolute; inset: 0; opacity: 0; pointer-events: none; transition: opacity 250ms ease; }
+.pdf-scrollbars { position: absolute; inset: 0 var(--memo-inset, 0px) 0 0; opacity: 0; pointer-events: none; transition: opacity 250ms ease; }
 .pdf-scrollbars.is-visible { opacity: 1; }
 .pdf-scrollbar { position: absolute; display: flex; touch-action: none; pointer-events: auto; }
 .pdf-scrollbar-vertical { top: 12px; right: 4px; bottom: 12px; width: 12px; justify-content: center; }
@@ -169,12 +202,17 @@ button:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visibl
 .subject-create-actions .subject-create-cancel:hover { background: #f0eeee; }
 
 @media (max-width: 760px) {
-  .subject-page-layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, auto) minmax(0, 1fr); }
-  .subject-page-layout.sidebar-collapsed { grid-template-columns: minmax(0, 1fr); grid-template-rows: 0 minmax(0, 1fr); }
-  .document-sidebar-container { height: auto; max-height: 30dvh; }
-  .document-sidebar-container .document-sidebar { width: 100%; }
-  .sidebar-collapsed .document-sidebar-container { height: 0; }
-  .document-sidebar { max-height: 30dvh; }
+  .subject-page-layout, .subject-page-layout.sidebar-collapsed { grid-template-columns: 0 minmax(0, 1fr); gap: 0; transition: none; }
+  .document-titlebar { padding-left: 128px; transition: none; }
+  .document-sidebar-container { z-index: 5; }
+  .document-drawer-backdrop { position: fixed; inset: 0; background: rgb(0 0 0 / 40%); }
+  .document-sidebar-container .document-sidebar { position: fixed; inset: 0 auto 0 0; width: min(360px, calc(100% - 32px)); border-radius: 0 20px 20px 0; background: #f7f6f6; overscroll-behavior: contain; transform: translateX(0); opacity: 1; transition: transform 240ms ease, visibility 0s; }
+  .sidebar-collapsed .document-sidebar { transform: translateX(-100%); visibility: hidden; transition: transform 240ms ease, visibility 0s linear 240ms; }
+  @starting-style {
+    .subject-page-layout:not(.sidebar-collapsed) .document-sidebar { transform: translateX(-100%); }
+  }
+  .subject-page-layout:not(.sidebar-collapsed) .document-sidebar-container::before { display: none; }
+  .document-sidebar .document-heading { position: sticky; z-index: 3; top: 0; background: #f7f6f6; }
 }
 
 @media (max-width: 600px) {
@@ -186,12 +224,9 @@ button:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visibl
   .notebook-card { border-radius: 32px; }
   .notebook-card-top { padding: 16px 24px 0; }
   .notebook-card-text { right: 24px; left: 24px; bottom: 20px; }
-  .subject-page-header { align-items: flex-start; flex-direction: column; gap: 16px; }
+  .subject-page-header { gap: 12px; margin-bottom: 16px; }
   .subject-page-header h1, .subject-not-found h1 { max-width: 100%; font-size: 22px; }
-  .subject-page-layout { gap: 16px; }
   .document-sidebar { padding: 16px; }
-  .sidebar-morph-icon { top: 25px; left: 25px; }
-  .sidebar-collapsed .sidebar-morph-icon { top: 13px; left: 13px; }
   .subject-modal-backdrop { padding: 16px; }
   .subject-modal { max-height: calc(100vh - 32px); padding: 20px; }
   .subject-create-fields { flex-direction: column; }
@@ -201,15 +236,12 @@ button:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visibl
   .pdf-toolbar { grid-template-columns: minmax(0, 1fr) 36px; }
   .pdf-toolbar-controls { grid-column: 1; }
   .pdf-memo-toggle { align-self: start; }
-  .pdf-viewer-content.memo-sidebar-open { grid-template-columns: minmax(0, 1fr) 0%; }
-  .pdf-memo-sidebar { position: absolute; z-index: 1; inset: 0 0 0 auto; width: min(320px, 85%); transform: translateX(100%); transition: transform 250ms ease, visibility 0s linear 250ms; }
-  .memo-sidebar-open .pdf-memo-sidebar { transform: translateX(0); }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .notebook-card { transition: none; }
   .subject-page-layout, .document-titlebar, .document-sidebar-container::before, .document-sidebar-container .document-sidebar, .sidebar-collapsed .document-sidebar, .sidebar-show, .sidebar-collapsed .sidebar-show, .sidebar-morph-icon, .sidebar-morph-arrow, .pdf-scrollbars { transition: none; }
-  .pdf-viewer-content, .pdf-toolbar .pdf-memo-toggle, .pdf-memo-sidebar, .memo-sidebar-open .pdf-memo-sidebar, .pdf-memo-content, .memo-sidebar-open .pdf-memo-content { transition: none; }
+  .pdf-toolbar .pdf-memo-toggle, .pdf-notes-sheet, .has-notes-sheet .pdf-notes-sheet, .page-notes-margin .note-item, .page-notes-add { transition: none; }
 }
 .document-heading { display:flex; align-items:center; gap: 8px; margin-bottom:14px; }
 .document-heading h2 { flex: 1; margin:0; }

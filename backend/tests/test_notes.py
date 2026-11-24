@@ -99,9 +99,9 @@ def test_create_note_default_title_increments(
     second = client.post(notes_url(document_id, 1), json={"title": "  ", "content": "b"}).json()
     other_page = client.post(notes_url(document_id, 2), json={}).json()
 
-    assert first["title"] == "메모 1"
-    assert second["title"] == "메모 2"
-    assert other_page["title"] == "메모 1"
+    assert first["title"] == "1페이지 메모 1"
+    assert second["title"] == "1페이지 메모 2"
+    assert other_page["title"] == "2페이지 메모 1"
     assert other_page["content"] == ""
 
 
@@ -135,6 +135,49 @@ def test_notes_ordered_by_id(client: TestClient, temp_database_engine: Engine) -
     contents = [n["content"] for n in client.get(notes_url(document_id, 1)).json()]
 
     assert contents == ["처음", "중간", "마지막"]
+
+
+def test_list_document_notes_groups_all_pages(
+    client: TestClient, temp_database_engine: Engine
+) -> None:
+    document_id = add_document(temp_database_engine, stored_name="doc-1")
+    other_document = add_document(temp_database_engine, stored_name="doc-2")
+    client.post(notes_url(document_id, 3), json={"content": "3-a"})
+    client.post(notes_url(document_id, 1), json={"content": "1-a"})
+    client.post(notes_url(other_document, 1), json={"content": "다른 자료"})
+    client.post(notes_url(document_id, 3), json={"content": "3-b"})
+
+    response = client.get(f"/documents/{document_id}/notes")
+
+    assert response.status_code == 200
+    assert [(n["page_number"], n["content"]) for n in response.json()] == [
+        (1, "1-a"),
+        (3, "3-a"),
+        (3, "3-b"),
+    ]
+
+
+def test_list_document_notes_empty(client: TestClient, temp_database_engine: Engine) -> None:
+    document_id = add_document(temp_database_engine)
+
+    response = client.get(f"/documents/{document_id}/notes")
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_list_document_notes_missing_document_returns_404(client: TestClient) -> None:
+    response = client.get("/documents/999/notes")
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Document not found"}
+
+
+@mark.parametrize("document_id", [0, -1, "abc"])
+def test_list_document_notes_invalid_id_returns_422(
+    client: TestClient, document_id: int | str
+) -> None:
+    assert client.get(f"/documents/{document_id}/notes").status_code == 422
 
 
 def test_update_title_only_keeps_content(

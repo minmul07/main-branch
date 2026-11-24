@@ -19,7 +19,7 @@ def create_note(
             .select_from(Note)
             .where(Note.document_id == document_id, Note.page_number == page_number)
         )
-        clean_title = f"메모 {count + 1}"
+        clean_title = f"{page_number}페이지 메모 {count + 1}"
     note = Note(
         document_id=document_id,
         page_number=page_number,
@@ -41,6 +41,17 @@ def list_notes_by_page(session: Session, document_id: int, page_number: int) -> 
             select(Note)
             .where(Note.document_id == document_id, Note.page_number == page_number)
             .order_by(Note.id)
+        )
+    )
+
+
+def list_notes_by_document(session: Session, document_id: int) -> list[Note]:
+    # 페이지 옆 메모 여백은 자료의 모든 메모를 한 번에 받아 페이지별로 나눈다.
+    return list(
+        session.scalars(
+            select(Note)
+            .where(Note.document_id == document_id)
+            .order_by(Note.page_number, Note.id)
         )
     )
 

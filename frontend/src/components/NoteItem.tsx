@@ -1,5 +1,5 @@
-import { useLayoutEffect, useRef, useState } from 'react'
-import type { FormEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import type { FocusEvent, FormEvent, KeyboardEvent } from 'react'
 import type { Note } from '../types'
 
 type Props = {
@@ -14,8 +14,10 @@ export default function NoteItem({ note, busy, onSave, onDelete }: Props) {
   const [title, setTitle] = useState(note.title)
   const [content, setContent] = useState(note.content)
   const [error, setError] = useState('')
+  const [menuOpen, setMenuOpen] = useState(false)
   const titleInput = useRef<HTMLInputElement>(null)
-  const editButton = useRef<HTMLButtonElement>(null)
+  const menuButton = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
   const restoreFocus = useRef(false)
 
   useLayoutEffect(() => {
@@ -24,12 +26,34 @@ export default function NoteItem({ note, busy, onSave, onDelete }: Props) {
 
   useLayoutEffect(() => {
     if (!editing && restoreFocus.current && !busy) {
-      editButton.current?.focus()
+      menuButton.current?.focus()
       restoreFocus.current = false
     }
   }, [editing, busy])
 
+  useEffect(() => {
+    if (!menuOpen) return
+    function closeOutside(event: MouseEvent) {
+      if (!menuRef.current?.contains(event.target as Node)) setMenuOpen(false)
+    }
+    document.addEventListener('click', closeOutside)
+    return () => document.removeEventListener('click', closeOutside)
+  }, [menuOpen])
+
+  // Escape closes only the menu (not the whole notes panel); tabbing out of it closes it too.
+  function handleMenuKey(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key !== 'Escape') return
+    event.preventDefault()
+    setMenuOpen(false)
+    menuButton.current?.focus()
+  }
+
+  function handleMenuBlur(event: FocusEvent<HTMLDivElement>) {
+    if (!event.currentTarget.contains(event.relatedTarget)) setMenuOpen(false)
+  }
+
   function startEdit() {
+    setMenuOpen(false)
     setTitle(note.title)
     setContent(note.content)
     setError('')
@@ -75,9 +99,21 @@ export default function NoteItem({ note, busy, onSave, onDelete }: Props) {
         <>
           <div className="note-item-header">
             <h4>{note.title}</h4>
-            <div className="note-item-actions">
-              <button ref={editButton} type="button" aria-label={`${note.title} 수정`} disabled={busy} onClick={startEdit}>수정</button>
-              <button type="button" aria-label={`${note.title} 삭제`} disabled={busy} onClick={(event) => onDelete(event.currentTarget)}>삭제</button>
+            <div className="note-item-menu" ref={menuRef} onKeyDown={handleMenuKey} onBlur={handleMenuBlur}>
+              <button
+                ref={menuButton}
+                type="button"
+                className="note-item-menu-toggle"
+                aria-label={`${note.title} 메뉴`}
+                aria-haspopup="true"
+                aria-expanded={menuOpen}
+                disabled={busy}
+                onClick={() => setMenuOpen((open) => !open)}
+              >⋮</button>
+              {menuOpen && <div className="note-item-menu-content">
+                <button type="button" aria-label={`${note.title} 수정`} onClick={startEdit}>수정</button>
+                <button type="button" className="danger" aria-label={`${note.title} 삭제`} onClick={() => { setMenuOpen(false); onDelete(menuButton.current!) }}>삭제</button>
+              </div>}
             </div>
           </div>
           {note.content && <p className="note-item-body">{note.content}</p>}
