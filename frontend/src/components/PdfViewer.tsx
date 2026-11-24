@@ -376,7 +376,7 @@ export default function PdfViewer({ documentId, showNotes = false }: ViewerProps
                 }) : <p role="status">PDF를 불러오는 중...</p>}
             </div>
           </div>
-          <PdfScrollbars area={scrollArea} content={scrollContent} insetEnd={memoInset} />
+          <PdfScrollbars area={scrollArea} content={scrollContent} />
         </div>
         {pdf && showNotes && compact && (
           <section id={`${notesId}-sheet`} className="pdf-notes-sheet" aria-labelledby={`${notesId}-sheet-title`} aria-hidden={!sheetOpen} inert={!sheetOpen}>
