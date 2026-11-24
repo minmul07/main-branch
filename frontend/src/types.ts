@@ -1,5 +1,15 @@
 export type Subject = { id: number; name: string; document_count: number }
 
+export type Note = {
+  id: number
+  document_id: number
+  page_number: number | null
+  title: string
+  content: string
+  created_at: string
+  updated_at: string
+}
+
 export type MockDocument = {
   id: number
   subject_id: number

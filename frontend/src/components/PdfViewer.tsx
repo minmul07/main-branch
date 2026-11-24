@@ -1,8 +1,9 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useEffectEvent, useId, useLayoutEffect, useRef, useState } from 'react'
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { API_BASE_URL } from '../config'
+import type { ReactNode } from 'react'
 import PdfScrollbars from './PdfScrollbars'
 
 GlobalWorkerOptions.workerSrc = workerUrl
@@ -66,7 +67,12 @@ function PdfPage({ pdf, pageNumber, root, scale, defaultSize }: { pdf: PDFDocume
   </div>
 }
 
-export default function PdfViewer({ documentId }: { documentId: number }) {
+type ViewerProps = {
+  documentId: number
+  renderNotes?: (options: { id: string; page: number; open: boolean }) => ReactNode
+}
+
+export default function PdfViewer({ documentId, renderNotes }: ViewerProps) {
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null)
   const [pageNumber, setPageNumber] = useState(1)
   const [error, setError] = useState(false)
@@ -74,6 +80,7 @@ export default function PdfViewer({ documentId }: { documentId: number }) {
   const [scrollArea, setScrollArea] = useState<HTMLDivElement | null>(null)
   const [scrollContent, setScrollContent] = useState<HTMLDivElement | null>(null)
   const [pageInput, setPageInput] = useState('1')
+  const [memoOpen, setMemoOpen] = useState(false)
   const [manualScale, setManualScale] = useState(1)
   const [editingZoom, setEditingZoom] = useState(false)
   const [zoomInput, setZoomInput] = useState('')
@@ -81,12 +88,14 @@ export default function PdfViewer({ documentId }: { documentId: number }) {
   const [pageSize, setPageSize] = useState<PageSize>({ width: 816, height: 1056 })
   const [firstPageSize, setFirstPageSize] = useState<PageSize>({ width: 816, height: 1056 })
   const [areaSize, setAreaSize] = useState({ width: 0, height: 0 })
+  const memoSidebarId = useId()
   const pageInputRef = useRef<HTMLInputElement>(null)
   const zoomInputRef = useRef<HTMLInputElement>(null)
   const zoomButtonRef = useRef<HTMLButtonElement>(null)
   const restoreZoomFocus = useRef(false)
   const scaleRef = useRef(1)
   const zoomAnchor = useRef<{ x: number; y: number; left: number; top: number; scale: number } | null>(null)
+  const resizeAnchor = useRef<{ page: HTMLElement; offset: number } | null>(null)
   const available = fit === 'width' ? areaSize.width : areaSize.height - 40
   const dimension = fit === 'width' ? pageSize.width : pageSize.height
   const scale = fit !== 'manual' && available > 0 && dimension > 0 ? clampScale(available / dimension) : manualScale
@@ -124,9 +133,23 @@ export default function PdfViewer({ documentId }: { documentId: number }) {
     return () => { active = false }
   }, [pdf, pageNumber])
 
+  const measureScrollArea = useEffectEvent((area: HTMLDivElement) => {
+    const size = { width: area.clientWidth, height: area.clientHeight }
+    if (size.width === areaSize.width && size.height === areaSize.height) return
+
+    if (fit === 'width' && size.width !== areaSize.width) {
+      const page = area.querySelector<HTMLElement>(`[data-page="${pageNumber}"]`)
+      const bounds = page?.getBoundingClientRect()
+      if (page && bounds?.height) {
+        resizeAnchor.current = { page, offset: (area.getBoundingClientRect().top - bounds.top) / bounds.height }
+      }
+    }
+    setAreaSize(size)
+  })
+
   useEffect(() => {
     if (!scrollArea) return
-    const measure = () => setAreaSize({ width: scrollArea.clientWidth, height: scrollArea.clientHeight })
+    const measure = () => measureScrollArea(scrollArea)
     measure()
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
     observer?.observe(scrollArea)
@@ -135,12 +158,21 @@ export default function PdfViewer({ documentId }: { documentId: number }) {
 
   useLayoutEffect(() => {
     scaleRef.current = scale
-    const anchor = zoomAnchor.current
-    if (!scrollArea || !anchor) return
-    const ratio = scale / anchor.scale
-    scrollArea.scrollTo({ left: (anchor.left + anchor.x) * ratio - anchor.x, top: (anchor.top + anchor.y) * ratio - anchor.y })
-    zoomAnchor.current = null
-  }, [scale, scrollArea])
+    const resize = resizeAnchor.current
+    resizeAnchor.current = null
+    if (!scrollArea) return
+
+    const zoom = zoomAnchor.current
+    if (zoom) {
+      const ratio = scale / zoom.scale
+      scrollArea.scrollTo({ left: (zoom.left + zoom.x) * ratio - zoom.x, top: (zoom.top + zoom.y) * ratio - zoom.y })
+      zoomAnchor.current = null
+    } else if (resize) {
+      const bounds = resize.page.getBoundingClientRect()
+      const top = scrollArea.scrollTop + bounds.top - scrollArea.getBoundingClientRect().top + bounds.height * resize.offset
+      scrollArea.scrollTo({ top })
+    }
+  }, [scale, scrollArea, areaSize])
 
   useEffect(() => {
     if (!scrollArea) return
@@ -228,23 +260,46 @@ export default function PdfViewer({ documentId }: { documentId: number }) {
 
   return (
     <div className="pdf-viewer">
-      {pdf && <div className="pdf-toolbar" aria-label="PDF 페이지 이동">
-        <button type="button" aria-label="이전" title="이전 페이지" disabled={pageNumber <= 1} onClick={() => goToPage(pageNumber - 1)}><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 15 6-6 6 6" /></svg></button>
-        <form onSubmit={(event) => { event.preventDefault(); submitPage() }}><input ref={pageInputRef} aria-label="페이지 번호" inputMode="numeric" value={pageInput} onChange={(event) => setPageInput(event.target.value)} onBlur={submitPage} /> <span>/ {pdf.numPages}</span></form>
-        <button type="button" aria-label="다음" title="다음 페이지" disabled={pageNumber >= pdf.numPages} onClick={() => goToPage(pageNumber + 1)}><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg></button>
-        <button type="button" aria-label="축소" title="축소" disabled={scale <= MIN_SCALE} onClick={() => changeZoom(1 / 1.2)}>−</button>
-        {editingZoom ? <form onSubmit={(event) => { event.preventDefault(); restoreZoomFocus.current = true; submitZoom() }}><input ref={zoomInputRef} aria-label="확대 배율" inputMode="decimal" value={zoomInput} onChange={(event) => setZoomInput(event.target.value)} onBlur={submitZoom} onKeyDown={(event) => { if (event.key === 'Escape') { event.preventDefault(); restoreZoomFocus.current = true; setEditingZoom(false) } }} /></form> : <button ref={zoomButtonRef} className="zoom-value" type="button" aria-label="확대 배율" title="확대 배율 입력" onClick={() => { setZoomInput(String(Math.round(scale * 100))); setEditingZoom(true) }}>{Math.round(scale * 100)}%</button>}
-        <button type="button" aria-label="확대" title="확대" disabled={scale >= MAX_SCALE} onClick={() => changeZoom(1.2)}>+</button>
-        <button type="button" aria-label={fit === 'width' ? '높이 맞춤' : '너비 맞춤'} title={fit === 'width' ? '높이 맞춤' : '너비 맞춤'} onClick={() => setFit(fit === 'width' ? 'height' : 'width')}><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="4" width="12" height="16" rx="1" />{fit === 'width' ? <path d="M12 8v8m-2-6 2-2 2 2m-4 4 2 2 2-2" /> : <path d="M8 12h8m-6-2-2 2 2 2m4-4 2 2-2 2" />}</svg></button>
-      </div>}
-      <div className="pdf-scroll-wrapper">
-      <div className={`pdf-page-area${fit === 'width' ? ' pdf-fit-width' : ''}`} ref={setScrollArea} onScroll={updateCurrentPage} tabIndex={0} role="region" aria-label="PDF 페이지">
-        <div className="pdf-pages" ref={setScrollContent}>
-        {error ? <div role="alert">PDF를 불러오지 못했습니다. <button type="button" onClick={() => { setError(false); setAttempt((n) => n + 1) }}>다시 시도</button></div>
-          : pdf ? Array.from({ length: pdf.numPages }, (_, index) => <PdfPage key={index + 1} pdf={pdf} pageNumber={index + 1} root={scrollArea} scale={scale} defaultSize={firstPageSize} />) : <p role="status">PDF를 불러오는 중...</p>}
+      {pdf && <div className="pdf-toolbar" role="group" aria-label="PDF 뷰어 도구">
+        <div className="pdf-toolbar-controls">
+          <div>
+            <button type="button" aria-label="이전" title="이전 페이지" disabled={pageNumber <= 1} onClick={() => goToPage(pageNumber - 1)}><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 15 6-6 6 6" /></svg></button>
+            <form onSubmit={(event) => { event.preventDefault(); submitPage() }}><input ref={pageInputRef} aria-label="페이지 번호" inputMode="numeric" value={pageInput} onChange={(event) => setPageInput(event.target.value)} onBlur={submitPage} /> <span>/ {pdf.numPages}</span></form>
+            <button type="button" aria-label="다음" title="다음 페이지" disabled={pageNumber >= pdf.numPages} onClick={() => goToPage(pageNumber + 1)}><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg></button>
+          </div>
+          <div>
+            <button type="button" aria-label="축소" title="축소" disabled={scale <= MIN_SCALE} onClick={() => changeZoom(1 / 1.2)}>−</button>
+            {editingZoom ? <form onSubmit={(event) => { event.preventDefault(); restoreZoomFocus.current = true; submitZoom() }}><input ref={zoomInputRef} aria-label="확대 배율" inputMode="decimal" value={zoomInput} onChange={(event) => setZoomInput(event.target.value)} onBlur={submitZoom} onKeyDown={(event) => { if (event.key === 'Escape') { event.preventDefault(); restoreZoomFocus.current = true; setEditingZoom(false) } }} /></form> : <button ref={zoomButtonRef} className="zoom-value" type="button" aria-label="확대 배율" title="확대 배율 입력" onClick={() => { setZoomInput(String(Math.round(scale * 100))); setEditingZoom(true) }}>{Math.round(scale * 100)}%</button>}
+            <button type="button" aria-label="확대" title="확대" disabled={scale >= MAX_SCALE} onClick={() => changeZoom(1.2)}>+</button>
+            <button type="button" aria-label={fit === 'width' ? '높이 맞춤' : '너비 맞춤'} title={fit === 'width' ? '높이 맞춤' : '너비 맞춤'} onClick={() => setFit(fit === 'width' ? 'height' : 'width')}><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="4" width="12" height="16" rx="1" />{fit === 'width' ? <path d="M12 8v8m-2-6 2-2 2 2m-4 4 2 2 2-2" /> : <path d="M8 12h8m-6-2-2 2 2 2m4-4 2 2-2 2" />}</svg></button>
+          </div>
         </div>
-      </div>
-      <PdfScrollbars area={scrollArea} content={scrollContent} />
+        {renderNotes && <button
+          className="pdf-memo-toggle"
+          type="button"
+          aria-label="메모"
+          aria-controls={memoSidebarId}
+          aria-expanded={memoOpen}
+          title={memoOpen ? '메모 닫기' : '메모 열기'}
+          onClick={() => setMemoOpen((open) => !open)}
+        >
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M13 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v8l-8 8Z" />
+            <path d="M13 21v-6a2 2 0 0 1 2-2h6M7 8h10m-10 4h3" />
+          </svg>
+        </button>}
+      </div>}
+      <div className={`pdf-viewer-content${memoOpen ? ' memo-sidebar-open' : ''}`}>
+        <div className="pdf-scroll-wrapper">
+          <div className={`pdf-page-area${fit === 'width' ? ' pdf-fit-width' : ''}`} ref={setScrollArea} onScroll={updateCurrentPage} tabIndex={0} role="region" aria-label="PDF 페이지">
+            <div className="pdf-pages" ref={setScrollContent}>
+              {error ? <div role="alert">PDF를 불러오지 못했습니다. <button type="button" onClick={() => { setError(false); setAttempt((n) => n + 1) }}>다시 시도</button></div>
+                : pdf ? Array.from({ length: pdf.numPages }, (_, index) => <PdfPage key={index + 1} pdf={pdf} pageNumber={index + 1} root={scrollArea} scale={scale} defaultSize={firstPageSize} />) : <p role="status">PDF를 불러오는 중...</p>}
+            </div>
+          </div>
+          <PdfScrollbars area={scrollArea} content={scrollContent} />
+        </div>
+        {pdf && renderNotes?.({ id: memoSidebarId, page: pageNumber, open: memoOpen })}
       </div>
     </div>
   )
