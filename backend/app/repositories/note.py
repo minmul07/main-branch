@@ -1,4 +1,4 @@
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from backend.app.models.note import Note
@@ -14,12 +14,18 @@ def create_note(
 ) -> Note:
     clean_title = (title or "").strip()
     if not clean_title:
-        count = session.scalar(
-            select(func.count())
-            .select_from(Note)
-            .where(Note.document_id == document_id, Note.page_number == page_number)
+        titles = set(
+            session.scalars(
+                select(Note.title).where(
+                    Note.document_id == document_id, Note.page_number == page_number
+                )
+            )
         )
-        clean_title = f"메모 {count + 1}"
+        # 메모를 지운 뒤에도 같은 페이지에서 기본 이름이 겹치지 않도록 다음 빈 번호를 쓴다.
+        number = len(titles) + 1
+        while f"{page_number}페이지 메모 {number}" in titles:
+            number += 1
+        clean_title = f"{page_number}페이지 메모 {number}"
     note = Note(
         document_id=document_id,
         page_number=page_number,
@@ -41,6 +47,17 @@ def list_notes_by_page(session: Session, document_id: int, page_number: int) -> 
             select(Note)
             .where(Note.document_id == document_id, Note.page_number == page_number)
             .order_by(Note.id)
+        )
+    )
+
+
+def list_notes_by_document(session: Session, document_id: int) -> list[Note]:
+    # 페이지 옆 메모 여백은 자료의 모든 메모를 한 번에 받아 페이지별로 나눈다.
+    return list(
+        session.scalars(
+            select(Note)
+            .where(Note.document_id == document_id)
+            .order_by(Note.page_number, Note.id)
         )
     )
 

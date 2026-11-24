@@ -8,6 +8,10 @@ import type { Subject } from '../types'
 
 const PdfViewer = lazy(() => import('./PdfViewer'))
 
+function SidebarIcon() {
+  return <svg className="sidebar-morph-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/><path className="sidebar-morph-arrow" d="M16 9l-3 3 3 3"/></svg>
+}
+
 type SubjectDocumentsPageProps = {
   subject: Subject
   selectedDocumentId: number | null
@@ -47,13 +51,27 @@ function SubjectDocumentsPage({
     return () => window.removeEventListener('deletion-settled', reconcile)
   }, [])
   const [uploading, setUploading] = useState(false)
-  const [collapsed, setCollapsed] = useState(false)
+  const [compact, setCompact] = useState(() => window.matchMedia?.('(max-width: 760px)').matches ?? false)
+  const [desktopCollapsed, setDesktopCollapsed] = useState(false)
+  const [drawerOpen, setDrawerOpen] = useState(true)
+  const collapsed = compact ? !drawerOpen : desktopCollapsed
+  const modalDrawer = compact && drawerOpen
+  useLayoutEffect(() => {
+    const query = window.matchMedia?.('(max-width: 760px)')
+    if (!query) return
+    function update(event: MediaQueryListEvent) {
+      setCompact(event.matches)
+      setDrawerOpen(false)
+    }
+    query.addEventListener('change', update)
+    return () => query.removeEventListener('change', update)
+  }, [])
   const addRef = useRef<HTMLButtonElement>(null)
   const collapseRef = useRef<HTMLButtonElement>(null)
   const expandRef = useRef<HTMLButtonElement>(null)
   const sidebarRef = useRef<HTMLElement>(null)
   const sidebarContainerRef = useRef<HTMLDivElement>(null)
-  const toggledRef = useRef(false)
+  const toggledRef = useRef(compact)
   useLayoutEffect(() => {
     const sidebar = sidebarRef.current
     const container = sidebarContainerRef.current
@@ -69,9 +87,17 @@ function SubjectDocumentsPage({
     return () => observer?.disconnect()
   }, [])
   useLayoutEffect(() => {
-    if (toggledRef.current) (collapsed ? expandRef : collapseRef).current?.focus()
+    if (toggledRef.current) {
+      (collapsed ? expandRef : collapseRef).current?.focus()
+      toggledRef.current = false
+    }
   }, [collapsed])
-  function toggleSidebar() { toggledRef.current = true; setOpenMenuId(null); setCollapsed((value) => !value) }
+  function toggleSidebar() {
+    toggledRef.current = true
+    setOpenMenuId(null)
+    if (compact) setDrawerOpen(!drawerOpen)
+    else setDesktopCollapsed(!desktopCollapsed)
+  }
   useEffect(() => {
     let current = true
     const version = ++listVersion.current
@@ -108,7 +134,7 @@ function SubjectDocumentsPage({
 
   return (
     <section className="subject-page" aria-labelledby="subject-page-title">
-      <header className="subject-page-header">
+      <header className="subject-page-header" inert={modalDrawer}>
         <button className="subject-page-back" type="button" onClick={onBack}>
           <span aria-hidden="true">←</span>
           내 수업
@@ -116,12 +142,18 @@ function SubjectDocumentsPage({
         <h1 id="subject-page-title">{subject.name}</h1>
       </header>
 
+      {uploading && <UploadDialog subjectId={subject.id} returnFocusRef={addRef} onClose={() => setUploading(false)} onUploaded={() => setAttempt((n) => n + 1)} />}
       {deleting && <DeleteDialog kind="documents" id={deleting.id} name={deleting.filename} returnFocusRef={deleteFocus} onClose={() => setDeleting(null)} onDeleted={() => { setDocuments((items) => items.filter((item) => item.id !== deleting.id)); if (selection.current === deleting.id) onSelectDocument(null) }} onRefresh={refreshDocuments} />}
       <div className={`subject-page-layout${collapsed ? ' sidebar-collapsed' : ''}`}>
         <div className="document-sidebar-container" ref={sidebarContainerRef}>
-        <aside ref={sidebarRef} id="document-sidebar" className="document-sidebar" aria-labelledby="document-sidebar-title" inert={collapsed}>
-          <div className="document-heading"><button ref={collapseRef} className="sidebar-toggle" type="button" aria-label="자료 목록 접기" aria-controls="document-sidebar" aria-expanded={!collapsed} onClick={toggleSidebar} /><h2 id="document-sidebar-title">자료 목록</h2><button ref={addRef} className="document-add" type="button" aria-label="자료 추가" onClick={() => setUploading(true)}>+</button></div>
-          {uploading && <UploadDialog subjectId={subject.id} returnFocusRef={addRef} onClose={() => setUploading(false)} onUploaded={() => setAttempt((n) => n + 1)} />}
+        {modalDrawer && <div className="document-drawer-backdrop" aria-hidden="true" onClick={toggleSidebar} />}
+        <aside role={modalDrawer ? 'dialog' : undefined} aria-modal={modalDrawer || undefined} onKeyDown={(event) => {
+          if (modalDrawer && event.key === 'Escape') {
+            event.stopPropagation()
+            toggleSidebar()
+          }
+        }} ref={sidebarRef} id="document-sidebar" className="document-sidebar" aria-labelledby="document-sidebar-title" inert={collapsed}>
+          <div className="document-heading"><button ref={collapseRef} className="sidebar-toggle" type="button" aria-label="자료 목록 접기" aria-controls="document-sidebar" aria-expanded={!collapsed} onClick={toggleSidebar}><SidebarIcon /></button><h2 id="document-sidebar-title">자료 목록</h2><button ref={addRef} className="document-add" type="button" aria-label="자료 추가" onClick={() => setUploading(true)}>+</button></div>
           {state === 'loading' && <p role="status">Loading...</p>}
           {state === 'error' && <div role="alert">자료를 불러오지 못했습니다. <button type="button" onClick={() => { setState('loading'); setAttempt((n) => n + 1) }}>다시 시도</button></div>}
           {state === 'ready' && documents.length === 0 && <p>등록된 자료가 없습니다.</p>}
@@ -132,9 +164,12 @@ function SubjectDocumentsPage({
                   className="document-row"
                   type="button"
                   aria-pressed={selectedDocumentId === document.id}
-                  onClick={() => onSelectDocument(document.id)}
+                  onClick={() => {
+                    onSelectDocument(document.id)
+                    if (modalDrawer) toggleSidebar()
+                  }}
                 >
-                  <span>{document.filename}</span>
+                  <span title={document.filename}>{document.filename}</span>
                   <span>{document.week_number}주차</span>
                 </button>
                 <div className="notebook-info document-menu" data-document-menu>
@@ -148,11 +183,10 @@ function SubjectDocumentsPage({
             ))}
           </ul>
         </aside>
-        <button ref={expandRef} className="sidebar-show" type="button" aria-label="자료 목록 펼치기" aria-controls="document-sidebar" aria-expanded={!collapsed} tabIndex={collapsed ? 0 : -1} aria-hidden={!collapsed} onClick={toggleSidebar} />
-        <svg className="sidebar-morph-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/><path className="sidebar-morph-arrow" d="M16 9l-3 3 3 3"/></svg>
+        <button ref={expandRef} className="sidebar-show" type="button" aria-label="자료 목록 펼치기" aria-controls="document-sidebar" aria-expanded={!collapsed} tabIndex={collapsed ? 0 : -1} aria-hidden={!collapsed} onClick={toggleSidebar}><SidebarIcon />자료 목록</button>
         </div>
 
-        <section className="document-details" aria-labelledby="document-details-title">
+        <section inert={modalDrawer} className="document-details" aria-labelledby={selectedDocument ? "document-details-title" : undefined} aria-label={selectedDocument ? undefined : "자료 본문"}>
           {selectedDocument ? (
             <>
             <div className="document-titlebar">
@@ -183,10 +217,18 @@ function SubjectDocumentsPage({
             </dl>
               </div>
             </div>
-            <div className="document-viewer-box"><Suspense fallback={<p className="document-placeholder" role="status">PDF 뷰어를 불러오는 중...</p>}><PdfViewer key={selectedDocument.id} documentId={selectedDocument.id} /></Suspense></div>
+            <div className="document-viewer-box">
+              <Suspense fallback={<p className="document-placeholder" role="status">PDF 뷰어를 불러오는 중...</p>}>
+                <PdfViewer
+                  key={selectedDocument.id}
+                  documentId={selectedDocument.id}
+                  showNotes
+                />
+              </Suspense>
+            </div>
             </>
           ) : (
-            <><div className="document-titlebar"><h2 id="document-details-title">PDF 뷰어</h2></div><div className="document-viewer-box"><p className="document-placeholder">PDF를 선택하면 원문이 여기에 표시됩니다.</p></div></>
+            <>{collapsed && <div className="document-titlebar" />}<div className="document-viewer-box"><p className="document-placeholder">PDF를 선택하면 원문이 여기에 표시됩니다.</p></div></>
           )}
         </section>
       </div>

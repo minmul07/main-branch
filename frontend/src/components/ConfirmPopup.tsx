@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import type { MouseEvent } from 'react'
 import { useDialogFocus } from '../hooks/useDialogFocus'
 import type { DialogReturnFocusRef } from '../hooks/useDialogFocus'
@@ -10,6 +11,8 @@ type ConfirmPopupProps = {
   onClose: () => void
   onConfirm: () => void
   returnFocusRef: DialogReturnFocusRef
+  busy?: boolean
+  error?: string
 }
 
 function ConfirmPopup({
@@ -20,12 +23,22 @@ function ConfirmPopup({
   onClose,
   onConfirm,
   returnFocusRef,
+  busy = false,
+  error,
 }: ConfirmPopupProps) {
   const dialogRef = useDialogFocus(returnFocusRef)
 
+  useEffect(() => {
+    if (busy) dialogRef.current?.focus()
+  }, [busy, dialogRef])
+
+  function close() {
+    if (!busy) onClose()
+  }
+
   function handleBackdropClick(event: MouseEvent<HTMLDivElement>) {
     if (event.target === event.currentTarget) {
-      onClose()
+      close()
     }
   }
 
@@ -36,9 +49,16 @@ function ConfirmPopup({
         className="subject-modal"
         role="dialog"
         aria-modal="true"
+        aria-busy={busy}
         aria-labelledby="confirm-popup-title"
         aria-describedby="confirm-popup-message"
         tabIndex={-1}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') {
+            event.stopPropagation()
+            close()
+          }
+        }}
       >
         <header className="subject-modal-header">
           <h2 id="confirm-popup-title">{title}</h2>
@@ -46,18 +66,21 @@ function ConfirmPopup({
             type="button"
             className="subject-modal-close"
             aria-label="팝업 닫기"
-            onClick={onClose}
+            onClick={close}
+            disabled={busy}
           >
             ×
           </button>
         </header>
 
         <p className="confirm-popup-message" id="confirm-popup-message">{message}</p>
+        {error && <p role="alert">{error}</p>}
+        {busy && <p role="status">처리 중…</p>}
         <div className="subject-create-actions confirm-popup-actions">
-          <button type="button" className="subject-create-cancel" onClick={onClose} autoFocus data-dialog-autofocus>
+          <button type="button" className="subject-create-cancel" onClick={close} disabled={busy} autoFocus data-dialog-autofocus>
             {cancelLabel}
           </button>
-          <button type="button" className="confirm-popup-confirm" onClick={onConfirm}>
+          <button type="button" className="confirm-popup-confirm" onClick={onConfirm} disabled={busy}>
             {confirmLabel}
           </button>
         </div>
