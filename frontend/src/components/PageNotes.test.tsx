@@ -98,6 +98,38 @@ test('refreshes the list after an uncertain create result before allowing anothe
   expect(fetchMock.mock.calls.filter(([, options]) => options?.method === 'POST')).toHaveLength(1)
 })
 
+test('keeps a separate draft for each page when the sheet follows the current page', async () => {
+  fetchMock.mockResolvedValueOnce(Response.json([]))
+  const { rerender } = render(<Harness />)
+  await screen.findByText('이 페이지에는 메모가 없습니다.')
+  fireEvent.change(draft(1), { target: { value: '1쪽 초안' } })
+  rerender(<Harness page={2} />)
+  expect(draft(2).value).toBe('')
+  rerender(<Harness page={1} />)
+  expect(draft(1).value).toBe('1쪽 초안')
+})
+
+test('keeps open note edits while the list is checked again', async () => {
+  const listed = deferredResponse()
+  fetchMock.mockResolvedValueOnce(Response.json([note(1, 1, '메모 1')]))
+    .mockRejectedValueOnce(new Error('connection lost'))
+    .mockReturnValueOnce(listed.promise)
+  render(<Harness />)
+  await screen.findByText('메모 1')
+  click('메모 1 메뉴')
+  click('메모 1 수정')
+  const content = screen.getByRole<HTMLTextAreaElement>('textbox', { name: '메모 내용' })
+  fireEvent.change(content, { target: { value: '고치는 중' } })
+  fireEvent.change(draft(), { target: { value: '새 메모' } })
+  click('추가')
+  await screen.findByRole('button', { name: '목록 다시 확인' })
+  click('목록 다시 확인')
+  expect(screen.getByRole<HTMLTextAreaElement>('textbox', { name: '메모 내용' }).value).toBe('고치는 중')
+  await act(async () => { listed.resolve(Response.json([note(1, 1, '메모 1')])) })
+  expect(screen.getByRole<HTMLTextAreaElement>('textbox', { name: '메모 내용' }).value).toBe('고치는 중')
+  expect(button('추가').disabled).toBe(false)
+})
+
 test('margin composer opens on demand, keeps its draft on Escape, and closes after adding', async () => {
   const created = note(1, 1, '메모 1', '정리')
   fetchMock.mockResolvedValueOnce(Response.json([]))
@@ -203,5 +235,7 @@ test('confirms note deletion, blocks duplicate requests, and allows retry in the
   click('삭제 확인')
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   expect(screen.getByText('이 페이지에는 메모가 없습니다.')).toBeTruthy()
+  // The deleted note's menu button is gone, so focus returns to the page's notes group.
+  expect(document.activeElement).toBe(screen.getByRole('group', { name: '1페이지 메모' }))
   expect(fetchMock.mock.calls[2]).toEqual([`${API_BASE_URL}/notes/1`, { method: 'DELETE' }])
 })

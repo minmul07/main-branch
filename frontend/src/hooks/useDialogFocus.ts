@@ -32,6 +32,8 @@ export function useDialogFocus(returnFocusRef: DialogReturnFocusRef) {
     const dialog = dialogRef.current
     if (!dialog) return
     const returnFocusTarget = returnFocusRef.current
+    // Read at close time on purpose: it is not a node this hook renders.
+    const replacementTarget = () => returnFocusRef.current
 
     function focusFirstControl() {
       const activeDialog = dialogRef.current
@@ -84,8 +86,10 @@ export function useDialogFocus(returnFocusRef: DialogReturnFocusRef) {
       document.removeEventListener('keydown', containTabFocus, true)
       document.removeEventListener('focusin', containProgrammaticFocus, true)
 
-      if (returnFocusTarget?.isConnected) {
-        returnFocusTarget.focus()
+      // The opener may be gone (e.g. its item was deleted); the caller can point the ref at a replacement.
+      const target = [returnFocusTarget, replacementTarget()].find((element) => element?.isConnected)
+      if (target) {
+        target.focus()
       } else {
         getFocusableElements(document.body)[0]?.focus()
       }

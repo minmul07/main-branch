@@ -5,12 +5,6 @@ function pageNotesUrl(documentId: number, page: number) {
   return `${API_BASE_URL}/documents/${documentId}/pages/${page}/notes`
 }
 
-export async function listNotes(documentId: number, page: number, signal: AbortSignal): Promise<Note[]> {
-  const response = await fetch(pageNotesUrl(documentId, page), { signal })
-  if (!response.ok) throw new Error(`HTTP ${response.status}`)
-  return response.json()
-}
-
 export async function listDocumentNotes(documentId: number, signal: AbortSignal): Promise<Note[]> {
   const response = await fetch(`${API_BASE_URL}/documents/${documentId}/notes`, { signal })
   if (!response.ok) throw new Error(`HTTP ${response.status}`)

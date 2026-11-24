@@ -16,16 +16,19 @@ type Props = {
   variant: 'margin' | 'sheet'
 }
 
+// The sheet reuses one PageNotes for every page, so per-page state (draft, in-flight create,
+// uncertain create) lives in the notes hook instead of this component.
 export default function PageNotes({ id, page, notes, api, current, variant }: Props) {
   const busy = api.busyPages.has(page)
+  const adding = api.busyPages.get(page) === 'create'
+  const addError = api.uncertainPages.has(page)
+  const draft = api.drafts.get(page) ?? ''
   const ready = api.state === 'ready'
   const [composing, setComposing] = useState(variant === 'sheet')
-  const [draft, setDraft] = useState('')
-  const [adding, setAdding] = useState(false)
-  const [addError, setAddError] = useState(false)
   const [deleting, setDeleting] = useState<Note | null>(null)
   const [deleteError, setDeleteError] = useState('')
-  const deleteFocus = useRef<HTMLButtonElement | null>(null)
+  const deleteFocus = useRef<HTMLElement | null>(null)
+  const groupRef = useRef<HTMLDivElement>(null)
   const addButton = useRef<HTMLButtonElement>(null)
   const draftInput = useRef<HTMLTextAreaElement>(null)
   const focusTarget = useRef<'draft' | 'add' | null>(null)
@@ -51,15 +54,12 @@ export default function PageNotes({ id, page, notes, api, current, variant }: Pr
     event?.preventDefault()
     const content = draft.trim()
     if (busy || !ready || addError || !content) return
-    setAdding(true)
     try {
       await api.create(page, content)
-      setDraft('')
+      api.setDraft(page, '')
       closeComposer()
     } catch {
-      setAddError(true)
-    } finally {
-      setAdding(false)
+      // The hook marks the page as uncertain; the draft stays for a retry after reloading.
     }
   }
 
@@ -75,10 +75,12 @@ export default function PageNotes({ id, page, notes, api, current, variant }: Pr
   }
 
   async function confirmDelete() {
-    if (!deleting || busy) return
+    if (!deleting || api.busyPages.has(deleting.page_number ?? 0)) return
     setDeleteError('')
     try {
       await api.remove(deleting)
+      // The note's ⋮ button is removed with it, so return focus to this page's notes group.
+      deleteFocus.current = groupRef.current
       setDeleting(null)
     } catch {
       setDeleteError('메모를 삭제하지 못했습니다. 다시 시도하세요.')
@@ -86,8 +88,11 @@ export default function PageNotes({ id, page, notes, api, current, variant }: Pr
   }
 
   const showStatus = variant === 'sheet' || current
+  // After the first load the previous list stays mounted during a reload, so open edits are kept.
+  const listed = api.loaded
   return (
     <div
+      ref={groupRef}
       id={id}
       className={`page-notes page-notes-${variant}${current ? ' is-current' : ''}${notes.length ? ' has-notes' : ''}${composing ? ' is-composing' : ''}`}
       role="group"
@@ -101,7 +106,7 @@ export default function PageNotes({ id, page, notes, api, current, variant }: Pr
           <button type="button" onClick={api.reload}>다시 시도</button>
         </div>
       )}
-      {ready && notes.length > 0 && (
+      {listed && notes.length > 0 && (
         <ul className="pdf-memo-list" aria-label={`${page}페이지 메모 목록`}>
           {notes.map((note) => (
             <NoteItem
@@ -119,13 +124,13 @@ export default function PageNotes({ id, page, notes, api, current, variant }: Pr
         </ul>
       )}
       {ready && variant === 'sheet' && notes.length === 0 && !adding && <p className="pdf-memo-status">이 페이지에는 메모가 없습니다.</p>}
-      {addError && (
+      {addError && api.state !== 'loading' && (
         <div className="pdf-memo-feedback" role="alert">
           <p>메모 추가 결과를 확인할 수 없습니다.</p>
-          <button type="button" onClick={() => { setAddError(false); api.reload() }}>목록 다시 확인</button>
+          <button type="button" onClick={api.reload}>목록 다시 확인</button>
         </div>
       )}
-      {ready && (composing ? (
+      {listed && (composing ? (
         <form className="page-notes-composer" onSubmit={submit}>
           <textarea
             ref={draftInput}
@@ -135,12 +140,12 @@ export default function PageNotes({ id, page, notes, api, current, variant }: Pr
             maxLength={10000}
             rows={variant === 'sheet' ? 2 : 3}
             disabled={adding}
-            onChange={(event) => setDraft(event.target.value)}
+            onChange={(event) => api.setDraft(page, event.target.value)}
             onKeyDown={handleDraftKey}
           />
           <div className="note-item-actions">
             {variant === 'margin' && <button type="button" onClick={closeComposer}>취소</button>}
-            <button type="submit" className="note-primary-action" disabled={!draft.trim() || busy || addError}>{adding ? '추가 중…' : '추가'}</button>
+            <button type="submit" className="note-primary-action" disabled={!draft.trim() || busy || addError || !ready}>{adding ? '추가 중…' : '추가'}</button>
           </div>
         </form>
       ) : (
@@ -163,7 +168,7 @@ export default function PageNotes({ id, page, notes, api, current, variant }: Pr
           onClose={() => setDeleting(null)}
           onConfirm={confirmDelete}
           returnFocusRef={deleteFocus}
-          busy={busy}
+          busy={api.busyPages.has(deleting.page_number ?? 0)}
           error={deleteError}
         />,
         document.body,
