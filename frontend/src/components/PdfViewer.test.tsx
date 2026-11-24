@@ -203,6 +203,32 @@ test('focuses the compact sheet from a badge and does not jump back after re-ope
   }
 })
 
+test('slides the notes margin out before closing, and reopening cancels the exit', async () => {
+  vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }))
+  try {
+    renderViewerWithNotes()
+    const toggle = await screen.findByRole('button', { name: '메모' })
+    fireEvent.click(toggle)
+    const content = screen.getByRole('group', { name: '1페이지 메모' }).closest('.pdf-viewer-content') as HTMLElement
+
+    fireEvent.click(toggle)
+    expect(toggle.getAttribute('aria-pressed')).toBe('false')
+    expect(content.classList.contains('is-leaving')).toBe(true)
+    expect(screen.getByRole('group', { name: '1페이지 메모' })).toBeTruthy()
+    await waitFor(() => expect(screen.queryByRole('group', { name: '1페이지 메모' })).toBeNull())
+    expect(content.classList.contains('is-leaving')).toBe(false)
+
+    fireEvent.click(toggle)
+    fireEvent.click(toggle)
+    fireEvent.click(toggle)
+    expect(toggle.getAttribute('aria-pressed')).toBe('true')
+    expect(content.classList.contains('is-leaving')).toBe(false)
+    expect(screen.getByRole('group', { name: '1페이지 메모' })).toBeTruthy()
+  } finally {
+    vi.unstubAllGlobals()
+  }
+})
+
 test('closes the notes with Escape, but Escape in the composer only closes the composer', async () => {
   renderViewerWithNotes()
   const toggle = await screen.findByRole('button', { name: '메모' })

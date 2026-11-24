@@ -23,6 +23,10 @@ function subscribeCompact(onChange: () => void) {
   return () => query?.removeEventListener('change', onChange)
 }
 const isCompact = () => window.matchMedia?.(COMPACT_QUERY).matches ?? false
+// The margin slides out before the layout changes; keep in sync with the memo-out animation in index.css.
+const MEMO_EXIT_MS = 180
+const MEMO_FLIP_MS = 220
+const canAnimate = () => !!window.matchMedia && !window.matchMedia('(prefers-reduced-motion: reduce)').matches
 type PageSize = { width: number; height: number }
 
 function PdfPage({ pdf, pageNumber, root, scale, defaultSize, children }: { pdf: PDFDocumentProxy; pageNumber: number; root: HTMLElement | null; scale: number; defaultSize: PageSize; children?: ReactNode }) {
@@ -94,6 +98,8 @@ export default function PdfViewer({ documentId, showNotes = false }: ViewerProps
   const [scrollContent, setScrollContent] = useState<HTMLDivElement | null>(null)
   const [pageInput, setPageInput] = useState('1')
   const [memoOpen, setMemoOpen] = useState(false)
+  // The margin stays mounted while it animates out, then the layout changes.
+  const [memoLeaving, setMemoLeaving] = useState(false)
   const [manualScale, setManualScale] = useState(1)
   const [editingZoom, setEditingZoom] = useState(false)
   const [zoomInput, setZoomInput] = useState('')
@@ -111,6 +117,8 @@ export default function PdfViewer({ documentId, showNotes = false }: ViewerProps
   const scaleRef = useRef(1)
   const zoomAnchor = useRef<{ x: number; y: number; left: number; top: number; scale: number } | null>(null)
   const resizeAnchor = useRef<{ page: HTMLElement; offset: number } | null>(null)
+  // Page boxes before the notes margin changes the fit width, so the new layout can animate from them.
+  const pageBoxes = useRef<Map<number, DOMRect> | null>(null)
   // A new object per badge click so the request runs even when the page is already current.
   const [notesRequest, setNotesRequest] = useState<{ page: number } | null>(null)
   const compact = useSyncExternalStore(subscribeCompact, isCompact, () => false)
@@ -167,6 +175,37 @@ export default function PdfViewer({ documentId, showNotes = false }: ViewerProps
     }
   }
 
+  function rememberPageBoxes() {
+    if (!scrollArea || !canAnimate() || typeof scrollArea.animate !== 'function') return
+    const view = scrollArea.getBoundingClientRect()
+    const boxes = new Map<number, DOMRect>()
+    for (const page of scrollArea.querySelectorAll<HTMLElement>('[data-page]')) {
+      const box = page.getBoundingClientRect()
+      if (box.bottom > view.top && box.top < view.bottom) boxes.set(Number(page.dataset.page), box)
+    }
+    pageBoxes.current = boxes
+  }
+
+  // The layout changes at once (so the canvases render at the new scale); each visible page then
+  // glides from its old box to the new one, keeping the reading position fixed.
+  const animatePagesFrom = useEffectEvent((boxes: Map<number, DOMRect>) => {
+    if (!scrollArea) return
+    for (const page of scrollArea.querySelectorAll<HTMLElement>('[data-page]')) {
+      const from = boxes.get(Number(page.dataset.page))
+      const to = page.getBoundingClientRect()
+      if (!from || !to.width || !to.height) continue
+      const dx = from.left - to.left
+      const dy = from.top - to.top
+      const sx = from.width / to.width
+      const sy = from.height / to.height
+      if (Math.abs(dx) < 1 && Math.abs(dy) < 1 && Math.abs(sx - 1) < 0.01) continue
+      page.animate(
+        [{ transformOrigin: '0 0', transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})` }, { transformOrigin: '0 0', transform: 'none' }],
+        { duration: MEMO_FLIP_MS, easing: 'ease' },
+      )
+    }
+  })
+
   const measureScrollArea = useEffectEvent((area: HTMLDivElement) => {
     const size = { width: area.clientWidth, height: area.clientHeight }
     if (size.width === areaSize.width && size.height === areaSize.height) return
@@ -199,6 +238,10 @@ export default function PdfViewer({ documentId, showNotes = false }: ViewerProps
       const top = scrollArea.scrollTop + bounds.top - scrollArea.getBoundingClientRect().top + bounds.height * resize.offset
       scrollArea.scrollTo({ top })
     }
+
+    const boxes = pageBoxes.current
+    pageBoxes.current = null
+    if (boxes) animatePagesFrom(boxes)
   }, [scale, scrollArea, areaSize, memoInset])
 
   // A page badge opens the notes for that page: scroll to it once the new layout is rendered.
@@ -286,8 +329,23 @@ export default function PdfViewer({ documentId, showNotes = false }: ViewerProps
 
   function changeZoom(factor: number) { setFit('manual'); setManualScale(clampScale(scale * factor)) }
 
+  const finishMemoExit = useEffectEvent(() => {
+    rememberReadingPosition()
+    rememberPageBoxes()
+    setMemoOpen(false)
+    setMemoLeaving(false)
+  })
+
+  useEffect(() => {
+    if (!memoLeaving) return
+    const timer = setTimeout(finishMemoExit, MEMO_EXIT_MS)
+    return () => clearTimeout(timer)
+  }, [memoLeaving])
+
   function toggleMemo() {
-    if (!compact) rememberReadingPosition()
+    if (memoLeaving) return setMemoLeaving(false) // reopening cancels the exit
+    if (memoOpen && !compact && canAnimate()) return setMemoLeaving(true)
+    if (!compact) { rememberReadingPosition(); rememberPageBoxes() }
     setMemoOpen((open) => !open)
   }
 
@@ -338,8 +396,8 @@ export default function PdfViewer({ documentId, showNotes = false }: ViewerProps
           type="button"
           aria-label="메모"
           aria-controls={compact ? `${notesId}-sheet` : undefined}
-          aria-pressed={memoOpen}
-          title={memoOpen ? '메모 숨기기' : '메모 보기'}
+          aria-pressed={memoOpen && !memoLeaving}
+          title={memoOpen && !memoLeaving ? '메모 숨기기' : '메모 보기'}
           onClick={toggleMemo}
         >
           <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -349,7 +407,7 @@ export default function PdfViewer({ documentId, showNotes = false }: ViewerProps
         </button>}
       </div>}
       <div
-        className={`pdf-viewer-content${marginOpen ? ' has-notes-margin' : ''}${sheetOpen ? ' has-notes-sheet' : ''}`}
+        className={`pdf-viewer-content${marginOpen ? ' has-notes-margin' : ''}${memoLeaving ? ' is-leaving' : ''}${sheetOpen ? ' has-notes-sheet' : ''}`}
         style={{ '--memo-inset': `${memoInset}px` } as CSSProperties}
         onKeyDown={closeMemoOnEscape}
       >
