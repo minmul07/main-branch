@@ -111,7 +111,8 @@ export default function PdfViewer({ documentId, showNotes = false }: ViewerProps
   const scaleRef = useRef(1)
   const zoomAnchor = useRef<{ x: number; y: number; left: number; top: number; scale: number } | null>(null)
   const resizeAnchor = useRef<{ page: HTMLElement; offset: number } | null>(null)
-  const pendingNotesPage = useRef<number | null>(null)
+  // A new object per badge click so the request runs even when the page is already current.
+  const [notesRequest, setNotesRequest] = useState<{ page: number } | null>(null)
   const compact = useSyncExternalStore(subscribeCompact, isCompact, () => false)
   // Wide screens: every page row gets a notes margin. Fit-width pages end at
   // the margin, and pages wider than the viewer scroll underneath the sticky margin notes.
@@ -201,13 +202,15 @@ export default function PdfViewer({ documentId, showNotes = false }: ViewerProps
   }, [scale, scrollArea, areaSize, memoInset])
 
   // A page badge opens the notes for that page: scroll to it once the new layout is rendered.
-  useLayoutEffect(() => {
-    const page = pendingNotesPage.current
-    if (!page || !memoOpen) return
-    pendingNotesPage.current = null
+  const runNotesRequest = useEffectEvent((page: number) => {
     goToPage(page)
+    // The sheet keeps one notes group across pages, so the focused element survives the page change.
     document.getElementById(compact ? `${notesId}-sheet-group` : `${notesId}-page-${page}`)?.focus({ preventScroll: true })
   })
+
+  useLayoutEffect(() => {
+    if (notesRequest) runNotesRequest(notesRequest.page)
+  }, [notesRequest])
 
   useEffect(() => {
     if (!scrollArea) return
@@ -289,9 +292,8 @@ export default function PdfViewer({ documentId, showNotes = false }: ViewerProps
   }
 
   function openNotesAt(page: number) {
-    pendingNotesPage.current = page
-    if (memoOpen) setPageNumber(page) // re-render so the pending scroll runs
-    else setMemoOpen(true)
+    setMemoOpen(true)
+    setNotesRequest({ page })
   }
 
   // Escape inside the notes closes them, except while typing in a note field.
@@ -383,7 +385,7 @@ export default function PdfViewer({ documentId, showNotes = false }: ViewerProps
               <button type="button" aria-label="메모 닫기" title="메모 닫기" onClick={() => { setMemoOpen(false); memoToggleRef.current?.focus() }}>×</button>
             </header>
             <div className="pdf-notes-sheet-body">
-              <PageNotes key={pageNumber} id={`${notesId}-sheet-group`} page={pageNumber} notes={notes.byPage.get(pageNumber) ?? []} api={notes} current variant="sheet" />
+              <PageNotes id={`${notesId}-sheet-group`} page={pageNumber} notes={notes.byPage.get(pageNumber) ?? []} api={notes} current variant="sheet" />
             </div>
           </section>
         )}

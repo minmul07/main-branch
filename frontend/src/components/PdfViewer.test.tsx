@@ -178,6 +178,31 @@ test('uses a bottom sheet for the current page on a compact viewer', async () =>
   }
 })
 
+test('focuses the compact sheet from a badge and does not jump back after re-opening the current page', async () => {
+  vi.stubGlobal('matchMedia', () => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() }))
+  listDocumentNotes.mockResolvedValue([note(1, 2, '핵심 개념')])
+  try {
+    renderViewerWithNotes()
+    fireEvent.click(await screen.findByRole('button', { name: '2페이지 메모 1개 보기' }))
+    const pageInput = screen.getByRole('textbox', { name: '페이지 번호' }) as HTMLInputElement
+    expect(pageInput.value).toBe('2')
+    expect(document.activeElement).toBe(screen.getByRole('group', { name: '2페이지 메모' }))
+
+    // The sheet is open and page 2 is current: its badge still moves focus to the sheet.
+    screen.getByRole('button', { name: '메모' }).focus()
+    fireEvent.click(screen.getByRole('button', { name: '2페이지 메모 1개 보기' }))
+    expect(document.activeElement).toBe(screen.getByRole('group', { name: '2페이지 메모' }))
+
+    // Later renders must not replay the badge request.
+    fireEvent.click(screen.getByRole('button', { name: '이전' }))
+    expect(pageInput.value).toBe('1')
+    fireEvent.click(screen.getByRole('button', { name: '메모' }))
+    expect(pageInput.value).toBe('1')
+  } finally {
+    vi.unstubAllGlobals()
+  }
+})
+
 test('closes the notes with Escape, but Escape in the composer only closes the composer', async () => {
   renderViewerWithNotes()
   const toggle = await screen.findByRole('button', { name: '메모' })

@@ -33,7 +33,8 @@ export default function PdfScrollbars({ area, content, insetEnd = 0 }: { area: H
   const visibleWidth = Math.max(0, metrics.clientWidth - insetEnd)
   const trackX = Math.max(0, visibleWidth - 24 - (vertical ? 8 : 0))
   const thumbY = Math.min(trackY, Math.max(24, trackY * metrics.clientHeight / (metrics.scrollHeight || 1)))
-  const thumbX = Math.min(trackX, Math.max(24, trackX * visibleWidth / (metrics.scrollWidth || 1)))
+  // The track is shortened by the overlay, but the thumb still shows the share of the content in the viewport.
+  const thumbX = Math.min(trackX, Math.max(24, trackX * metrics.clientWidth / (metrics.scrollWidth || 1)))
   const y = (metrics.top / (metrics.scrollHeight - metrics.clientHeight || 1)) * (trackY - thumbY)
   const x = (metrics.left / (metrics.scrollWidth - metrics.clientWidth || 1)) * (trackX - thumbX)
 
