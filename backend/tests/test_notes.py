@@ -105,6 +105,19 @@ def test_create_note_default_title_increments(
     assert other_page["content"] == ""
 
 
+def test_create_note_default_title_skips_existing_number(
+    client: TestClient, temp_database_engine: Engine
+) -> None:
+    document_id = add_document(temp_database_engine)
+    first = client.post(notes_url(document_id, 1), json={}).json()
+    client.post(notes_url(document_id, 1), json={})
+    assert client.delete(f"/notes/{first['id']}").status_code == 204
+
+    created = client.post(notes_url(document_id, 1), json={}).json()
+
+    assert created["title"] == "1페이지 메모 3"
+
+
 def test_create_note_strips_title(client: TestClient, temp_database_engine: Engine) -> None:
     document_id = add_document(temp_database_engine)
 

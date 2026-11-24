@@ -155,7 +155,7 @@ DB와 파일시스템은 단일 원자적 트랜잭션이 아니다. commit 이�
 | GET | `/search?q=...` | 검색어 `q`; 과목 범위 지정용 `subject_id` 제안 | 페이지 단위 검색 결과 목록 |
 | GET | `/documents/{id}/notes` | 문서 ID | 구현됨. 자료의 모든 메모(페이지 번호, ID 순). 없는 자료 404, 잘못된 ID 422. 뷰어의 페이지 배지와 페이지 옆 메모 여백이 한 번에 불러올 때 사용 |
 | GET | `/documents/{id}/pages/{page}/notes` | 문서 ID, 페이지 번호 | 구현됨. 해당 페이지의 메모 목록(ID 순) |
-| POST | `/documents/{id}/pages/{page}/notes` | 문서 ID, 페이지 번호, 본문 `title`(선택), `content`(선택) | 구현됨. 201, 생성한 메모. `title`을 비우면 "{페이지}페이지 메모 {N}" 기본 이름(N은 그 페이지의 기존 메모 수 + 1) |
+| POST | `/documents/{id}/pages/{page}/notes` | 문서 ID, 페이지 번호, 본문 `title`(선택), `content`(선택) | 구현됨. 201, 생성한 메모. `title`을 비우면 "{페이지}페이지 메모 {N}" 기본 이름(N은 그 페이지의 기존 메모 수 + 1에서 시작해, 같은 페이지에 같은 이름이 있으면 다음 번호) |
 | PATCH | `/notes/{id}` | Note ID, 수정할 `title`·`content` 중 보낼 것만 | 구현됨. 수정한 메모. 보내지 않은 칸은 유지 |
 | DELETE | `/notes/{id}` | Note ID | 구현됨. 204, 응답 본문 없음 |
 
