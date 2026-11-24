@@ -16,12 +16,13 @@ export default function NoteItem({ note, busy, onSave, onDelete }: Props) {
   const [error, setError] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
   const titleInput = useRef<HTMLInputElement>(null)
+  const contentInput = useRef<HTMLTextAreaElement>(null)
   const menuButton = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const restoreFocus = useRef(false)
 
   useLayoutEffect(() => {
-    if (editing) titleInput.current?.focus()
+    if (editing) contentInput.current?.focus()
   }, [editing])
 
   useLayoutEffect(() => {
@@ -69,7 +70,7 @@ export default function NoteItem({ note, busy, onSave, onDelete }: Props) {
     event.preventDefault()
     if (busy) return
     if (!title.trim()) {
-      setError('메모 이름을 입력하세요.')
+      setError('메모 제목을 입력하세요.')
       titleInput.current?.focus()
       return
     }
@@ -87,8 +88,8 @@ export default function NoteItem({ note, busy, onSave, onDelete }: Props) {
     <li className="note-item">
       {editing ? (
         <form className="note-item-editor" onSubmit={save}>
-          <label>이름<input ref={titleInput} aria-label="메모 이름" value={title} maxLength={100} disabled={busy} onChange={(event) => setTitle(event.target.value)} /></label>
-          <label>내용<textarea aria-label="메모 내용" value={content} maxLength={10000} rows={4} disabled={busy} onChange={(event) => setContent(event.target.value)} /></label>
+          <label>제목<input ref={titleInput} aria-label="메모 제목" value={title} maxLength={100} disabled={busy} onChange={(event) => setTitle(event.target.value)} /></label>
+          <label>내용<textarea ref={contentInput} aria-label="메모 내용" value={content} maxLength={10000} rows={4} disabled={busy} onChange={(event) => setContent(event.target.value)} /></label>
           {error && <p role="alert">{error}</p>}
           <div className="note-item-actions">
             <button type="button" disabled={busy} onClick={finishEdit}>취소</button>
