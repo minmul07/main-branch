@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { MouseEvent } from 'react'
 import { listSubjects, createSubject } from './subjectsApi'
-import type { SearchResult, Subject } from './types'
+import type { PageTarget, SearchResult, Subject } from './types'
 import SubjectCreateForm from './components/SubjectCreateForm'
 import SubjectDocumentsPage from './components/SubjectDocumentsPage'
 import DeleteDialog from './components/DeleteDialog'
@@ -21,6 +21,7 @@ function App() {
   const [openMenuId, setOpenMenuId] = useState<number | null>(null)
   const [activeId, setActiveId] = useState(routeId)
   const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [pageTarget, setPageTarget] = useState<PageTarget | null>(null)
   const addRef = useRef<HTMLButtonElement | null>(null)
   const [deleting, setDeleting] = useState<Subject | null>(null)
   const deleteFocus = useRef<HTMLElement | null>(null)
@@ -35,7 +36,7 @@ function App() {
     return () => { alive = false }
   }, [attempt])
   useEffect(() => {
-    function sync() { setActiveId(routeId()); setSelectedId(null); setOpenMenuId(null); setDeleting(null); setAttempt((n) => n + 1) }
+    function sync() { setActiveId(routeId()); setSelectedId(null); setPageTarget(null); setOpenMenuId(null); setDeleting(null); setAttempt((n) => n + 1) }
     window.addEventListener('popstate', sync)
     return () => window.removeEventListener('popstate', sync)
   }, [])
@@ -54,7 +55,7 @@ function App() {
   }, [openMenuId])
   function navigate(id: number | null) {
     window.history.pushState({}, '', id === null ? '/' : `/subjects/${id}`)
-    setActiveId(id); setSelectedId(null); setOpenMenuId(null); setDeleting(null)
+    setActiveId(id); setSelectedId(null); setPageTarget(null); setOpenMenuId(null); setDeleting(null)
     if (id === null) setAttempt((n) => n + 1)
   }
   async function refreshSubjects() {
@@ -78,12 +79,17 @@ function App() {
   function openResult(result: SearchResult) {
     navigate(result.subject_id)
     setSelectedId(result.document_id)
+    setPageTarget({ documentId: result.document_id, page: result.page_number, nonce: Date.now() })
+  }
+  function selectDocument(id: number | null) {
+    setSelectedId(id)
+    setPageTarget(null)
   }
   return <main className={`notebooks${state === 'ready' && activeId !== null && active ? ' notebooks-subject' : ''}`}>
     {state === 'loading' ? <p role="status">과목을 불러오는 중입니다.</p> : state === 'error' ?
       <section role="alert"><p>과목을 불러오지 못했습니다.</p><button type="button" onClick={() => { setState('loading'); setAttempt((n) => n + 1) }}>다시 시도</button></section> :
       activeId !== null ? active ?
-        <SubjectDocumentsPage key={active.id} subject={active} selectedDocumentId={selectedId} onBack={() => navigate(null)} onSelectDocument={setSelectedId} /> :
+        <SubjectDocumentsPage key={active.id} subject={active} selectedDocumentId={selectedId} pageTarget={pageTarget} onBack={() => navigate(null)} onSelectDocument={selectDocument} /> :
         <section className="subject-not-found"><h1>과목을 찾을 수 없습니다.</h1><button type="button" onClick={() => navigate(null)}>내 수업으로 돌아가기</button></section> :
       <>
         <header className="notebooks-header"><h1>내 수업</h1><button ref={addRef} className="new-notebook" type="button" aria-expanded={adding} aria-controls="add-subject" onClick={() => setAdding(true)}><span className="plus" aria-hidden="true">＋</span>수업 추가</button></header>

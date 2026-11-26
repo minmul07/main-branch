@@ -4,7 +4,7 @@ import UploadDialog from './UploadDialog'
 import DeleteDialog from './DeleteDialog'
 import DocumentProcessingStatus from './DocumentProcessingStatus'
 import type { MockDocument } from '../types'
-import type { Subject } from '../types'
+import type { PageTarget, Subject } from '../types'
 
 const PdfViewer = lazy(() => import('./PdfViewer'))
 
@@ -15,6 +15,7 @@ function SidebarIcon() {
 type SubjectDocumentsPageProps = {
   subject: Subject
   selectedDocumentId: number | null
+  pageTarget?: PageTarget | null
   onBack: () => void
   onSelectDocument: (documentId: number | null) => void
 }
@@ -22,6 +23,7 @@ type SubjectDocumentsPageProps = {
 function SubjectDocumentsPage({
   subject,
   selectedDocumentId,
+  pageTarget = null,
   onBack,
   onSelectDocument,
 }: SubjectDocumentsPageProps) {
@@ -117,6 +119,7 @@ function SubjectDocumentsPage({
     if (selection.current !== null && !items.some((item) => item.id === selection.current)) onSelectDocument(null)
   }
   const selectedDocument = documents.find((document) => document.id === selectedDocumentId)
+  const target = selectedDocument && pageTarget?.documentId === selectedDocument.id ? pageTarget : null
 
   function formatFileSize(bytes: number) {
     const kilobytes = bytes / 1024
@@ -220,9 +223,10 @@ function SubjectDocumentsPage({
             <div className="document-viewer-box">
               <Suspense fallback={<p className="document-placeholder" role="status">PDF 뷰어를 불러오는 중...</p>}>
                 <PdfViewer
-                  key={selectedDocument.id}
+                  key={`${selectedDocument.id}-${target?.nonce ?? 0}`}
                   documentId={selectedDocument.id}
                   showNotes
+                  initialPage={target?.page}
                 />
               </Suspense>
             </div>

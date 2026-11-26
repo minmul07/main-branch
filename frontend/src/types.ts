@@ -30,3 +30,5 @@ export type SearchResult = {
   week_number: number
   snippet: string
 }
+
+export type PageTarget = { documentId: number; page: number; nonce: number }

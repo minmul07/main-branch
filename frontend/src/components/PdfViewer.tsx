@@ -87,9 +87,10 @@ type ViewerProps = {
   documentId: number
   // Shows page notes: in the right margin beside each page on wide screens, in a bottom sheet on narrow ones.
   showNotes?: boolean
+  initialPage?: number
 }
 
-export default function PdfViewer({ documentId, showNotes = false }: ViewerProps) {
+export default function PdfViewer({ documentId, showNotes = false, initialPage }: ViewerProps) {
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null)
   const [pageNumber, setPageNumber] = useState(1)
   const [error, setError] = useState(false)
@@ -97,7 +98,7 @@ export default function PdfViewer({ documentId, showNotes = false }: ViewerProps
   const [scrollArea, setScrollArea] = useState<HTMLDivElement | null>(null)
   const [scrollContent, setScrollContent] = useState<HTMLDivElement | null>(null)
   const [pageInput, setPageInput] = useState('1')
-  const [memoOpen, setMemoOpen] = useState(false)
+  const [memoOpen, setMemoOpen] = useState(showNotes && initialPage !== undefined)
   // The margin stays mounted while it animates out, then the layout changes.
   const [memoLeaving, setMemoLeaving] = useState(false)
   const [manualScale, setManualScale] = useState(1)
@@ -120,7 +121,7 @@ export default function PdfViewer({ documentId, showNotes = false }: ViewerProps
   // Page boxes before the notes margin changes the fit width, so the new layout can animate from them.
   const pageBoxes = useRef<Map<number, DOMRect> | null>(null)
   // A new object per badge click so the request runs even when the page is already current.
-  const [notesRequest, setNotesRequest] = useState<{ page: number } | null>(null)
+  const [notesRequest, setNotesRequest] = useState<{ page: number } | null>(() => initialPage === undefined ? null : { page: initialPage })
   const compact = useSyncExternalStore(subscribeCompact, isCompact, () => false)
   // Wide screens: every page row gets a notes margin. Fit-width pages end at
   // the margin, and pages wider than the viewer scroll underneath the sticky margin notes.
@@ -253,7 +254,7 @@ export default function PdfViewer({ documentId, showNotes = false }: ViewerProps
 
   useLayoutEffect(() => {
     if (notesRequest) runNotesRequest(notesRequest.page)
-  }, [notesRequest])
+  }, [notesRequest, pdf])
 
   useEffect(() => {
     if (!scrollArea) return
