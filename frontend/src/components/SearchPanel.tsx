@@ -6,6 +6,13 @@ import type { SearchResult } from '../types'
 type SearchPanelProps = { onSelect: (result: SearchResult) => void }
 type SearchState = 'idle' | 'loading' | 'ready' | 'error'
 
+function highlight(text: string, query: string) {
+  const index = text.toLowerCase().indexOf(query.toLowerCase())
+  if (index < 0) return text
+  const end = index + query.length
+  return <>{text.slice(0, index)}<mark>{text.slice(index, end)}</mark>{text.slice(end)}</>
+}
+
 export default function SearchPanel({ onSelect }: SearchPanelProps) {
   const [input, setInput] = useState('')
   const [submitted, setSubmitted] = useState('')
@@ -70,10 +77,9 @@ export default function SearchPanel({ onSelect }: SearchPanelProps) {
           {results.map((result) => (
             <li key={result.page_id}>
               <button type="button" className="search-result" onClick={() => onSelect(result)}>
-                <span className="search-result-path">
-                  {result.subject_name} › {result.filename} · {result.week_number}주차 · {result.page_number}페이지
-                </span>
-                <span className="search-result-snippet">{result.snippet}</span>
+                <span className="search-result-title">{result.filename}</span>
+                <span className="search-result-meta">{result.subject_name} · {result.week_number}주차 · {result.page_number}페이지</span>
+                <span className="search-result-snippet">{highlight(result.snippet, submitted)}</span>
               </button>
             </li>
           ))}
