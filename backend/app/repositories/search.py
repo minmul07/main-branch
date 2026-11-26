@@ -6,9 +6,12 @@ from sqlalchemy.orm import Session
 # trigram 색인은 3글자 이상만 찾을 수 있어서, 그보다 짧은 검색어는 LIKE로 찾는다.
 MIN_FTS_LENGTH = 3
 SNIPPET_RADIUS = 30
-_CONTENT = "coalesce(p.text, '') || char(10) || coalesce(p.ocr_text, '')"
 _COLUMNS = (
-    f"p.id, p.document_id, p.page_number, d.filename, d.subject_id, d.week_number, {_CONTENT} AS content"
+    "p.id, p.document_id, p.page_number, d.filename, d.subject_id, s.name AS subject_name, "
+    "d.week_number, p.text AS page_text, p.ocr_text AS page_ocr_text"
+)
+_JOINS = (
+    "JOIN documents d ON d.id = p.document_id JOIN subjects s ON s.id = d.subject_id"
 )
 
 
@@ -19,19 +22,36 @@ class SearchHit:
     page_number: int
     filename: str
     subject_id: int
+    subject_name: str
     week_number: int
     snippet: str
 
 
-def make_snippet(content: str, query: str) -> str:
-    """검색어 앞뒤 글자를 잘라 한 줄 문맥을 만든다."""
-    flat = " ".join(content.split())
+def _window(content: str | None, query: str) -> str | None:
+    """content에서 검색어를 찾아 앞뒤 글자를 한 줄로 자른다. 없으면 None이다."""
+    flat = " ".join((content or "").split())
     index = flat.lower().find(query.lower())
     if index < 0:
-        return flat[: SNIPPET_RADIUS * 2]
+        return None
     start = max(0, index - SNIPPET_RADIUS)
     end = min(len(flat), index + len(query) + SNIPPET_RADIUS)
     return ("…" if start > 0 else "") + flat[start:end] + ("…" if end < len(flat) else "")
+
+
+def make_snippet(page_text: str | None, ocr_text: str | None, query: str) -> str:
+    """스니펫 기준: 1) text에서 찾으면 text 2) 없으면 ocr_text 3) 둘 다 못 찾으면 글이 있는 쪽의 앞부분.
+
+    ocr_text가 NULL(OCR 안 한 페이지)이어도 text만으로 동작한다.
+    """
+    for content in (page_text, ocr_text):
+        snippet = _window(content, query)
+        if snippet is not None:
+            return snippet
+    for content in (page_text, ocr_text):
+        flat = " ".join((content or "").split())
+        if flat:
+            return flat[: SNIPPET_RADIUS * 2]
+    return ""
 
 
 def _like_pattern(query: str) -> str:
@@ -42,7 +62,7 @@ def _like_pattern(query: str) -> str:
 def search_pages(
     session: Session, query: str, *, subject_id: int | None = None, limit: int = 50
 ) -> list[SearchHit]:
-    """검색어가 들어 있는 페이지를 찾는다. 결과가 없으면 빈 목록이다."""
+    """검색어가 들어 있는 페이지를 찾는다. 한 페이지는 text·ocr_text 어느 쪽에서 찾든 한 번만 나온다."""
     query = query.strip()
     if not query:
         return []
@@ -58,7 +78,7 @@ def search_pages(
             SELECT {_COLUMNS}
             FROM page_fts
             JOIN pages p ON p.id = page_fts.rowid
-            JOIN documents d ON d.id = p.document_id
+            {_JOINS}
             WHERE page_fts MATCH :match{subject_filter}
             ORDER BY page_fts.rank, d.week_number, p.document_id, p.page_number
             LIMIT :limit
@@ -68,8 +88,8 @@ def search_pages(
         sql = f"""
             SELECT {_COLUMNS}
             FROM pages p
-            JOIN documents d ON d.id = p.document_id
-            WHERE ({_CONTENT}) LIKE :pattern ESCAPE '\\'{subject_filter}
+            {_JOINS}
+            WHERE (p.text LIKE :pattern ESCAPE '\\' OR p.ocr_text LIKE :pattern ESCAPE '\\'){subject_filter}
             ORDER BY d.week_number, p.document_id, p.page_number
             LIMIT :limit
         """
@@ -81,8 +101,9 @@ def search_pages(
             page_number=row.page_number,
             filename=row.filename,
             subject_id=row.subject_id,
+            subject_name=row.subject_name,
             week_number=row.week_number,
-            snippet=make_snippet(row.content, query),
+            snippet=make_snippet(row.page_text, row.page_ocr_text, query),
         )
         for row in rows
     ]

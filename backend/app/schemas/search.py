@@ -9,5 +9,6 @@ class SearchResult(BaseModel):
     page_number: int
     filename: str
     subject_id: int
+    subject_name: str
     week_number: int
     snippet: str
