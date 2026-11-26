@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import type { MouseEvent } from 'react'
 import { listSubjects, createSubject } from './subjectsApi'
-import type { Subject } from './types'
+import type { SearchResult, Subject } from './types'
 import SubjectCreateForm from './components/SubjectCreateForm'
 import SubjectDocumentsPage from './components/SubjectDocumentsPage'
 import DeleteDialog from './components/DeleteDialog'
+import SearchPanel from './components/SearchPanel'
 
 function routeId() {
   const match = window.location.pathname.match(/^\/subjects\/(\d+)\/?$/)
@@ -74,6 +75,10 @@ function App() {
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
     event.preventDefault(); navigate(id)
   }
+  function openResult(result: SearchResult) {
+    navigate(result.subject_id)
+    setSelectedId(result.document_id)
+  }
   return <main className={`notebooks${state === 'ready' && activeId !== null && active ? ' notebooks-subject' : ''}`}>
     {state === 'loading' ? <p role="status">과목을 불러오는 중입니다.</p> : state === 'error' ?
       <section role="alert"><p>과목을 불러오지 못했습니다.</p><button type="button" onClick={() => { setState('loading'); setAttempt((n) => n + 1) }}>다시 시도</button></section> :
@@ -82,6 +87,7 @@ function App() {
         <section className="subject-not-found"><h1>과목을 찾을 수 없습니다.</h1><button type="button" onClick={() => navigate(null)}>내 수업으로 돌아가기</button></section> :
       <>
         <header className="notebooks-header"><h1>내 수업</h1><button ref={addRef} className="new-notebook" type="button" aria-expanded={adding} aria-controls="add-subject" onClick={() => setAdding(true)}><span className="plus" aria-hidden="true">＋</span>수업 추가</button></header>
+        <SearchPanel onSelect={openResult} />
         {adding && <SubjectCreateForm onClose={() => setAdding(false)} onCreateSubject={create} returnFocusRef={addRef} />}
         {deleting && <DeleteDialog kind="subjects" id={deleting.id} name={deleting.name} documentCount={deleting.document_count} returnFocusRef={deleteFocus} onClose={() => setDeleting(null)} onDeleted={() => setSubjects((items) => items.filter((item) => item.id !== deleting.id))} onRefresh={refreshSubjects} />}
         {subjects.length === 0 && <p>등록된 과목이 없습니다.</p>}
