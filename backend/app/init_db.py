@@ -5,6 +5,7 @@ import backend.app.models  # noqa: F401  모델을 Base.metadata에 등록
 from backend.app.database import Base, engine
 from backend.app.models.document import Document
 from backend.app.models.document_processing import DocumentProcessing
+from backend.app.services.search_index import ensure_search_index
 
 
 def init_db(target_engine: Engine = engine) -> None:
@@ -14,6 +15,7 @@ def init_db(target_engine: Engine = engine) -> None:
         page_columns = {column["name"] for column in inspect(connection).get_columns("pages")}
         if "ocr_text" not in page_columns:
             connection.execute(text("ALTER TABLE pages ADD COLUMN ocr_text TEXT"))
+        ensure_search_index(connection)
         documents_without_job = select(Document.id).where(
             ~select(DocumentProcessing.document_id)
             .where(DocumentProcessing.document_id == Document.id)

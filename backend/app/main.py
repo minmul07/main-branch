@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.app import config, database
-from backend.app.routers import documents, subjects, notes
+from backend.app.routers import documents, subjects, notes, search
 from backend.app.services import document_processing
 
 
@@ -37,6 +37,7 @@ app.add_middleware(
 app.include_router(subjects.router)
 app.include_router(documents.router)
 app.include_router(notes.router)
+app.include_router(search.router)
 
 
 @app.get("/health")

@@ -185,7 +185,7 @@ test('focuses the compact sheet from a badge and does not jump back after re-ope
     renderViewerWithNotes()
     fireEvent.click(await screen.findByRole('button', { name: '2페이지 메모 1개 보기' }))
     const pageInput = screen.getByRole('textbox', { name: '페이지 번호' }) as HTMLInputElement
-    expect(pageInput.value).toBe('2')
+    await waitFor(() => expect(pageInput.value).toBe('2'))
     expect(document.activeElement).toBe(screen.getByRole('group', { name: '2페이지 메모' }))
 
     // The sheet is open and page 2 is current: its badge still moves focus to the sheet.
@@ -377,4 +377,26 @@ test('keeps a tall visible page current while the next page is outside the viewp
   nextBounds.mockReturnValue({ top: 300, bottom: 1580 } as DOMRect)
   fireEvent.scroll(area)
   expect((screen.getByRole('textbox', { name: '페이지 번호' }) as HTMLInputElement).value).toBe('2')
+})
+
+test('opens the notes at the requested initial page', async () => {
+  listDocumentNotes.mockResolvedValue([note(1, 2, '핵심 개념')])
+  render(<PdfViewer documentId={7} showNotes initialPage={2} />)
+  const group = await screen.findByRole('group', { name: '2페이지 메모' })
+  expect(screen.getByRole('button', { name: '메모' }).getAttribute('aria-pressed')).toBe('true')
+  await waitFor(() => expect((screen.getByRole('textbox', { name: '페이지 번호' }) as HTMLInputElement).value).toBe('2'))
+  await waitFor(() => expect(document.activeElement).toBe(group))
+})
+
+test('goes to the initial page even when notes are hidden', async () => {
+  render(<PdfViewer documentId={7} initialPage={2} />)
+  await screen.findByText('/ 2')
+  await waitFor(() => expect((screen.getByRole('textbox', { name: '페이지 번호' }) as HTMLInputElement).value).toBe('2'))
+  expect(screen.queryByRole('button', { name: '메모' })).toBeNull()
+})
+
+test('ignores an initial page the PDF does not have', async () => {
+  render(<PdfViewer documentId={7} showNotes initialPage={9} />)
+  await screen.findByText('/ 2')
+  expect((screen.getByRole('textbox', { name: '페이지 번호' }) as HTMLInputElement).value).toBe('1')
 })
