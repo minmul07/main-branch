@@ -107,6 +107,7 @@ export default function PdfViewer({ documentId, showNotes = false, initialPage }
   const [fit, setFit] = useState<'width' | 'height' | 'manual'>('width')
   const [pageSize, setPageSize] = useState<PageSize>({ width: 816, height: 1056 })
   const [firstPageSize, setFirstPageSize] = useState<PageSize>({ width: 816, height: 1056 })
+  const [sizeKnown, setSizeKnown] = useState(false)
   const [areaSize, setAreaSize] = useState({ width: 0, height: 0 })
   const notesId = useId()
   const notes = useDocumentNotes(documentId, showNotes)
@@ -161,6 +162,7 @@ export default function PdfViewer({ documentId, showNotes = false, initialPage }
       const size = { width: viewport.width, height: viewport.height }
       setPageSize(size)
       if (pageNumber === 1) setFirstPageSize(size)
+      setSizeKnown(true)
     }).catch(() => {})
     return () => { active = false }
   }, [pdf, pageNumber])
@@ -253,8 +255,8 @@ export default function PdfViewer({ documentId, showNotes = false, initialPage }
   })
 
   useLayoutEffect(() => {
-    if (notesRequest) runNotesRequest(notesRequest.page)
-  }, [notesRequest, pdf])
+    if (notesRequest && sizeKnown) runNotesRequest(notesRequest.page)
+  }, [notesRequest, pdf, sizeKnown])
 
   useEffect(() => {
     if (!scrollArea) return
