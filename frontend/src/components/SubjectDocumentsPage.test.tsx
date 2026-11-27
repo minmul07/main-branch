@@ -19,8 +19,13 @@ function Harness() {
 test('document menu opens one at a time and closes outside without changing selection', async () => {
   const fetchMock = vi.fn().mockResolvedValue(ok(docs))
   vi.stubGlobal('fetch', fetchMock)
-  render(<Harness />)
-  await screen.findByTestId('viewer')
+  await act(async () => {
+    render(<Harness />)
+  })
+  await act(async () => {
+    await vi.dynamicImportSettled()
+  })
+  expect(screen.getByTestId('viewer').textContent).toBe('PDF 11')
   expect(screen.queryByRole('button', { name: '선택.pdf 삭제' })).toBeNull()
   fireEvent.click(screen.getByRole('button', { name: '선택.pdf 메뉴' }))
   expect(screen.getByRole('button', { name: '선택.pdf 삭제' })).toBeTruthy()
@@ -30,6 +35,7 @@ test('document menu opens one at a time and closes outside without changing sele
   expect(screen.getByTestId('viewer').textContent).toBe('PDF 11')
   fireEvent.click(document.body)
   expect(screen.queryByRole('dialog')).toBeNull()
+  expect(screen.getByTestId('viewer').textContent).toBe('PDF 11')
   expect(fetchMock).toHaveBeenCalledTimes(1)
 })
 
