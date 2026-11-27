@@ -175,7 +175,7 @@ Subject
 
 - `Note`는 `document_id`와 `page_number`로 페이지를 가리키며 `pages.id` FK를 갖지 않는다. 텍스트 추출 전에도 원문 페이지에 메모를 쓸 수 있도록 기존 Note 구조를 유지했다. 두 테이블은 `(document_id, page_number)`로 연결된다.
 - FK를 강제하므로 Page가 있는 Document는 Page를 먼저 지워야 삭제할 수 있다. `services/deletion.py`는 자료마다 Note → Page → Document 순으로 같은 트랜잭션에서 지우고, 실패하면 모두 rollback한다. DB cascade는 추가하지 않았다.
-- `delete_pages_by_document`는 SQL 일괄 삭제라 ORM 이벤트가 실행되지 않는다. FTS5 색인(#32)은 SQLite trigger나 삭제 서비스에서의 명시적 정리로 동기화해야 한다.
+- `delete_pages_by_document`는 SQL 일괄 삭제라 ORM 이벤트가 실행되지 않는다. 대신 FTS5 색인(#32)은 `pages` 테이블의 SQLite trigger로 동기화하므로 SQL 일괄 삭제에서도 색인이 함께 지워진다. 삭제 서비스는 같은 트랜잭션에서 Page를 지우므로 삭제가 실패해 rollback되면 색인도 그대로 돌아간다.
 
 ### 기존 DB 업그레이드
 
@@ -206,11 +206,25 @@ Subject
 | --- | --- |
 | 페이지 텍스트 추출·처리 상태·재시도 | 업로드 후 백엔드 작업 스레드에서 실행한다. [PDF 처리 문서](PDF_PROCESSING.md) |
 | OCR 및 상태 UI | 구현(#31). 작업 스레드가 `image` 페이지를 OCR해 `Page.ocr_text`에 저장한다. 자료 목록은 처리 상태 API로 대기·처리 중·실패 원인을 표시하고 재시도를 요청한다. [PDF 처리 문서](PDF_PROCESSING.md#ocr-31) |
-| FTS5 검색 | 미구현. Page 텍스트가 생긴 뒤 색인한다. |
+| FTS5 검색 | 구현(#32). `pages`의 `text`·`ocr_text`를 `page_fts`에 색인하고 `GET /search`로 조회한다. 자세한 내용은 아래 [검색 색인](#검색-색인-32)을 참고한다. |
 | Subject·Document 삭제 | `services/deletion.py`가 `BEGIN IMMEDIATE`로 삭제를 직렬화하고 Repository의 단건 삭제·flush 및 commit/rollback을 관리한다. 과목은 자료가 있으면 409로 거부한다. 자료는 원본을 격리한 뒤 행을 commit하고 격리 파일을 제거한다. 실패·강제 종료·수동 복구 정책은 [API.md](API.md#파일-실패와-복구)를 따른다. 자료마다 Note → Page → Document 순으로 같은 트랜잭션에서 삭제한다. |
 | frontend 연결·PDF.js 뷰어 | 구현(#19, #22). frontend는 `/documents` API를 호출하고 PDF.js는 `GET /documents/{id}/file`을 읽는다. CORS는 `CORS_ALLOWED_ORIGINS`로 허용하고 `Content-Disposition`을 노출한다. |
 | 중복 업로드 판별 | 하지 않는다. 같은 파일도 별도 Document로 저장한다. |
 | 남은 파일 자동 정리 | 하지 않는다. 강제 종료 시 남은 파일의 수동 정리 기준은 위 [한계와 정리 방침](#한계와-정리-방침)을 따른다. |
+
+## 검색 색인 (#32)
+
+페이지 텍스트를 SQLite FTS5로 색인해 `GET /search`가 페이지 단위로 결과를 돌려준다. 색인은 `backend/app/services/search_index.py`, 조회는 `backend/app/repositories/search.py`와 `backend/app/routers/search.py`가 맡는다.
+
+| 항목 | 내용 |
+| --- | --- |
+| 색인 표 | `page_fts`. FTS5 가상 표이며 칸은 `pages`와 같은 `text`, `ocr_text` 두 개다. `rowid`는 `pages.id`와 같다. 토크나이저는 `trigram`이다. |
+| 동기화 | `pages`의 INSERT, `text`·`ocr_text` UPDATE, DELETE trigger가 같은 트랜잭션에서 `page_fts`를 갱신한다. 페이지 저장이 rollback되면 색인도 함께 취소된다. 칸이 `NULL`이면 빈 문자열로 색인한다. |
+| 기존 DB 업그레이드 | `init_db`가 `ensure_search_index`를 호출해 표와 trigger를 만들고, 아직 색인되지 않은 기존 페이지를 채운다. 여러 번 실행해도 안전하며 기존 과목·자료·메모·PDF는 바꾸지 않는다. 칸 구조가 다른 옛 색인 표가 있으면 지우고 새로 만든다. |
+| 재색인 | 색인이 어긋났다고 의심되면 저장소 루트에서 `uv run python -m backend.app.services.search_index`를 실행한다. 색인을 모두 지우고 `pages`의 현재 내용으로 처음부터 다시 만든다. 원본 데이터는 바꾸지 않는다. |
+| 삭제 | Page 삭제는 trigger가 색인을 함께 지운다. 삭제 서비스가 자료·과목을 지울 때도 같은 규칙이 적용되며, 삭제가 실패해 rollback되면 색인도 그대로다. |
+
+한국어 검색은 `trigram` 때문에 3글자 이상은 부분 문자열로 찾고, 1~2글자는 `LIKE`로 찾는다. 형태소 분석은 하지 않으며 자세한 동작과 한계는 [API.md](API.md#검색-동작)를 따른다.
 
 ## 다음 합의 사항
 

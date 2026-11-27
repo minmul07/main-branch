@@ -4,7 +4,7 @@
 
 P0 MVP에서 frontend와 backend가 같은 경로와 데이터 의미를 사용하기 위한 계약 초안이다. [ARCHITECTURE.md](ARCHITECTURE.md)의 역할 경계와 최소 데이터 관계를 따른다.
 
-현재 구현된 API는 `GET /health`, `GET /subjects`, `POST /subjects`, `DELETE /subjects/{id}`, `POST /documents`, `GET /documents`, `GET /documents/{id}`, `GET /documents/{id}/file`, `DELETE /documents/{id}`, `GET /documents/{id}/notes`, `GET /documents/{id}/pages/{page}/notes`, `POST /documents/{id}/pages/{page}/notes`, `PATCH /notes/{id}`, `DELETE /notes/{id}`이다. 구현된 계약은 아래 [구현된 API](#구현된-api)에 정리하며, 그 외 업무 endpoint는 구현 전 제안이다. 팀 합의 후 구현과 OpenAPI에 반영한다.
+현재 구현된 API는 `GET /health`, `GET /subjects`, `POST /subjects`, `DELETE /subjects/{id}`, `POST /documents`, `GET /documents`, `GET /documents/{id}`, `GET /documents/{id}/file`, `DELETE /documents/{id}`, `GET /documents/{id}/notes`, `GET /documents/{id}/pages/{page}/notes`, `POST /documents/{id}/pages/{page}/notes`, `PATCH /notes/{id}`, `DELETE /notes/{id}`, `GET /search`이다. 구현된 계약은 아래 [구현된 API](#구현된-api)에 정리하며, 그 외 업무 endpoint는 구현 전 제안이다. 팀 합의 후 구현과 OpenAPI에 반영한다.
 
 ## 공통 규칙 제안
 
@@ -152,7 +152,7 @@ DB와 파일시스템은 단일 원자적 트랜잭션이 아니다. commit 이�
 | POST | `/documents/{id}/processing/retry` | 문서 ID | 구현됨. 실패한 작업만 재등록 202 |
 | DELETE | `/documents/{id}` | 문서 ID | 구현됨. 메타데이터·원본 삭제 204; 실패·복구 정책은 위 확정 계약 참고 |
 | GET | `/documents/{id}/pages/{page}` | 문서 ID, 페이지 번호 | 페이지 ID, 문서 ID, 페이지 번호, 추출 텍스트 |
-| GET | `/search?q=...` | 검색어 `q`; 과목 범위 지정용 `subject_id` 제안 | 페이지 단위 검색 결과 목록 |
+| GET | `/search?q=...` | 검색어 `q`(1~100자, 앞뒤 공백 제거), 선택: `subject_id`(과목 범위), `limit`(1~100, 기본 50) | 구현됨. 페이지 단위 검색 결과 목록. 일치하는 페이지가 없으면 빈 목록(200). `q`가 비었거나 공백뿐이거나 `subject_id`·`limit`이 범위를 벗어나면 422 |
 | GET | `/documents/{id}/notes` | 문서 ID | 구현됨. 자료의 모든 메모(페이지 번호, ID 순). 없는 자료 404, 잘못된 ID 422. 뷰어의 페이지 배지와 페이지 옆 메모 여백이 한 번에 불러올 때 사용 |
 | GET | `/documents/{id}/pages/{page}/notes` | 문서 ID, 페이지 번호 | 구현됨. 해당 페이지의 메모 목록(ID 순) |
 | POST | `/documents/{id}/pages/{page}/notes` | 문서 ID, 페이지 번호, 본문 `title`(선택), `content`(선택) | 구현됨. 201, 생성한 메모. `title`을 비우면 "{페이지}페이지 메모 {N}" 기본 이름(N은 그 페이지의 기존 메모 수 + 1에서 시작해, 같은 페이지에 같은 이름이 있으면 다음 번호) |
@@ -170,8 +170,35 @@ DB와 파일시스템은 단일 원자적 트랜잭션이 아니다. commit 이�
 | `document_id` | 원본 문서 선택 |
 | `page_id` | 페이지 메모 조회·작성 |
 | `page_number` | PDF.js에서 해당 페이지로 이동 |
-| `filename`, `subject_id`, `week_number` | 검색 결과의 자료 위치 표시 |
+| `filename`, `subject_id`, `subject_name`, `week_number` | 검색 결과의 자료 위치 표시 |
 | `snippet` | 검색어 주변 문맥 표시 |
+
+응답 예시는 다음과 같다.
+
+```json
+[
+  {
+    "document_id": 4,
+    "page_id": 130,
+    "page_number": 21,
+    "filename": "week1.pdf",
+    "subject_id": 1,
+    "subject_name": "자료구조",
+    "week_number": 1,
+    "snippet": "…DOUBLY LINKED LISTS 1. Before the delete…"
+  }
+]
+```
+
+### 검색 동작
+
+- 검색 대상: 페이지의 추출 텍스트(`text`)와 OCR 텍스트(`ocr_text`) 두 칸을 모두 찾는다. 한 페이지가 양쪽에서 일치해도 결과는 한 번만 나온다. `ocr_text`가 `NULL`(OCR 안 함)인 기존 페이지도 `text`만으로 검색된다.
+- 일치 방식: SQLite FTS5의 `trigram` 토크나이저로 검색어가 들어 있는 글을 부분 문자열로 찾는다. 영문 대소문자는 구분하지 않고, "미분을"처럼 조사가 붙은 글에서도 "미분"을 찾는다. 검색어의 따옴표·`%`·`_`는 일반 문자로 취급한다.
+- 짧은 검색어: `trigram`은 3글자 미만을 찾지 못하므로 1~2글자 검색어는 `LIKE`로 찾는다. 이 경우 관련도 정렬이 없고 페이지가 많으면 느릴 수 있다.
+- 스니펫: `text`에서 검색어를 먼저 찾고, 없으면 `ocr_text`에서 찾는다. 둘 다 못 찾으면 글이 있는 쪽의 앞부분을 쓴다. 검색어 앞뒤 30글자를 한 줄로 자르며 줄바꿈과 연속 공백은 한 칸으로 바꾼다. 잘린 쪽에는 `…`를 붙인다.
+- 정렬: 3글자 이상이면 관련도(BM25) 순이고, 같으면 주차 → 자료 → 페이지 순이다. 1~2글자는 주차 → 자료 → 페이지 순이다.
+- 범위와 개수: `subject_id`를 주면 그 과목 안에서만 찾는다. 결과는 `limit`(기본 50, 최대 100)개까지이며 페이지네이션은 없다.
+- 한계: 형태소 분석은 하지 않는다. 원문 그대로 비교하므로 검색어의 공백이 원문의 줄바꿈과 다르면(예: 원문 `a↵b`, 검색어 `a b`) 찾지 못한다. 연속된 공백도 원문 그대로 비교하므로 원문에 공백이 두 칸이면 한 칸으로 검색해서는 찾지 못한다. 이 한계는 실제 SQLite `trigram`으로 확인했다.
 
 `GET /documents/{id}/pages/{page}`는 페이지 메타데이터와 텍스트를 조회하는 계약이다. PDF.js는 원본 PDF를 `GET /documents/{id}/file`에서 읽는다.
 
@@ -181,7 +208,7 @@ DB와 파일시스템은 단일 원자적 트랜잭션이 아니다. commit 이�
 
 - 요청·응답의 정확한 필드명·타입, 목록·오류 형식과 성공 상태 코드
 - 페이지 처리 중이거나 추출에 실패했을 때 페이지 조회 응답
-- 검색의 과목 범위와 결과 정렬·페이지네이션
+- 검색 결과의 페이지네이션(현재는 `limit`개까지만 반환한다)
 - Page·Note 도입 시 문서 삭제의 하위 데이터 처리, 페이지별 메모 개수
 
 OCR·실패 재시도와 자료 목록은 P0에 포함되지만, 위 endpoint 목록만으로 모든 계약이 정해진 것은 아니다. 관련 담당자가 이 항목들을 보완한 뒤 구현을 연결한다.
