@@ -20,5 +20,7 @@ def search_pages(
     query = q.strip()
     if not query:
         raise HTTPException(status_code=422, detail="q must not be blank")
+    if "\x00" in query:
+        raise HTTPException(status_code=422, detail="q must not contain NUL characters")
     hits = search_repository.search_pages(db, query, subject_id=subject_id, limit=limit)
     return [SearchResult.model_validate(hit) for hit in hits]

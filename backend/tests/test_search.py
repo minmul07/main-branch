@@ -152,6 +152,13 @@ def test_search_rejects_missing_or_blank_query(client: TestClient) -> None:
     assert client.get("/search", params={"q": "   "}).status_code == 422
 
 
+def test_search_rejects_nul_character(client: TestClient) -> None:
+    # NUL이 검색식(FTS5)에 들어가면 500이 나므로 글자 수와 상관없이 422로 거절한다.
+    assert client.get("/search", params={"q": "\x00ab"}).status_code == 422
+    assert client.get("/search", params={"q": "ab\x00c"}).status_code == 422
+    assert client.get("/search", params={"q": "\x00"}).status_code == 422
+
+
 def test_search_filters_by_subject(client: TestClient, temp_database_engine: Engine) -> None:
     first_subject, _ = add_document(
         temp_database_engine, ["linked list"], subject_name="자료구조"
